@@ -58,6 +58,7 @@ def configure_logging(settings: AppSettings) -> None:
 
     if _listener is not None:
         _listener.stop()
+        atexit.unregister(_listener.stop)
     log_queue: queue.Queue = queue.Queue(-1)
     _listener = QueueListener(log_queue, stream, respect_handler_level=True)
     _listener.start()

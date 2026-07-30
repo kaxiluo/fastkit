@@ -6,11 +6,9 @@ strategy,覆盖 acquire 的立即成功/重试/超时分支,以及 reset_time/ma
 
 from __future__ import annotations
 
-import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-import pytest
 from limits import RateLimitItemPerSecond
 from limits.aio.strategies import MovingWindowRateLimiter
 
@@ -41,17 +39,19 @@ def _strategy(hit_values, *, reset_time: float = 1000.0) -> AsyncMock:
 def _patch_time(monkeypatch, *, monotonic_seq=(), time_value: float = 500.0) -> None:
     """patch limiter 模块内的 time.monotonic / time.time。
 
-    monotonic_seq:迭代返回值;用完后再调用返回最后一个值。
+    monotonic_seq:按序返回;用完后继续返回最后一个值。
     time_value:wall clock 固定返回值,用于 reset_time 计算等待。
     """
     seq = list(monotonic_seq)
     idx = {"i": 0}
 
     def _monotonic() -> float:
-        if seq:
-            return seq[min(idx["i"], len(seq) - 1)]
+        if not seq:
+            idx["i"] += 1
+            return float(idx["i"])
+        i = idx["i"]
         idx["i"] += 1
-        return float(idx["i"])
+        return seq[min(i, len(seq) - 1)]
 
     monkeypatch.setattr(f"{_LIM_MOD}.time.monotonic", _monotonic)
     monkeypatch.setattr(f"{_LIM_MOD}.time.time", lambda: time_value)
