@@ -77,6 +77,11 @@ class Messaging:
         self._shutdown.set()
         if self._relay_task is not None:
             try:
+                # 这个 timeout 与 broker.shutdown_grace_seconds(给消费者 drain)
+                # 语义不同:这里只是等 relay 协程在 _shutdown event 触发后自然退出。
+                # relay 主循环每次 poll 间隔 outbox_poll_interval_seconds(默认 1s),
+                # 给 10s 是 generous 兜底;正常情况下百毫秒级就会结束。超时则 cancel,
+                # 让上层 broker.stop() / lifespan 接管。
                 await asyncio.wait_for(self._relay_task, timeout=10.0)
             except TimeoutError:
                 self._relay_task.cancel()
