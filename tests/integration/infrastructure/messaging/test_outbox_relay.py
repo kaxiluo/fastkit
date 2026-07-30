@@ -45,8 +45,8 @@ async def test_drain_once_publishes_and_marks_row(
     broker = AsyncMock()
     broker.publish = AsyncMock(return_value=None)
 
-    processed = await _drain_once(session_factory, broker, test_messaging_settings)
-    assert processed == 1
+    fetched = await _drain_once(session_factory, broker, test_messaging_settings)
+    assert fetched == 1  # 1 行被抓回且成功发布
     broker.publish.assert_awaited_once()
 
     async with session_factory() as s:
@@ -68,8 +68,8 @@ async def test_drain_once_increments_attempts_on_broker_failure(
     broker = AsyncMock()
     broker.publish = AsyncMock(side_effect=RuntimeError("broker down"))
 
-    processed = await _drain_once(session_factory, broker, test_messaging_settings)
-    assert processed == 0  # 未成功
+    fetched = await _drain_once(session_factory, broker, test_messaging_settings)
+    assert fetched == 1  # 1 行被抓回处理(publish 失败,退避)
 
     async with session_factory() as s:
         row = (

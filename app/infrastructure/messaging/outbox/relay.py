@@ -1,4 +1,4 @@
-"""Outbox relay:LISTEN + FOR UPDATE SKIP LOCKED + publisher confirm + 退避 + DLQ 转投。"""
+"""Outbox relay:LISTEN/NOTIFY + 积压连续消化 + FOR UPDATE SKIP LOCKED + publisher confirm + 退避 + DLQ 转投。"""
 
 from __future__ import annotations
 
@@ -26,13 +26,13 @@ async def _drain_once(
     broker,
     settings: MessagingSettings,
 ) -> int:
-    """扫一批 outbox 行 → publish → 更新;返回成功发布行数。
+    """扫一批 outbox 行 → publish → 更新;返回本批抓回行数(用于判断是否抓满以决定续抓)。
 
     失败分支:
       - new_attempts < max_attempts:attempts+1 + backoff
       - new_attempts >= max_attempts:标 status='dead' + published_at=NOW() + 转投 DLX
     """
-    processed = 0
+    fetched = 0
     async with session_factory() as session, session.begin():
         rows = (
             (
@@ -60,6 +60,7 @@ async def _drain_once(
             .all()
         )
 
+        fetched = len(rows)
         for row in rows:
             try:
                 await broker.publish(
@@ -71,7 +72,6 @@ async def _drain_once(
                     text("UPDATE fastkit_outbox SET published_at = NOW() WHERE id = :id"),
                     {"id": row["id"]},
                 )
-                processed += 1
             except Exception as e:
                 new_attempts = row["attempts"] + 1
                 if new_attempts >= settings.outbox_max_attempts:
@@ -157,7 +157,24 @@ async def _drain_once(
                             "error": repr(e),
                         },
                     )
-    return processed
+    return fetched
+
+
+async def _drain_until_empty(
+    session_factory: async_sessionmaker,
+    broker,
+    settings: MessagingSettings,
+) -> None:
+    """反复 _drain_once 直到本轮 due 行清空(某批抓回 < batch_size)。
+
+    失败行被 _drain_once 推到未来的 next_attempt_at,下一批 SELECT 不会再选中,
+    因此 broker 全挂时也自然收敛,不会忙等。
+    """
+    while True:
+        n = await _drain_once(session_factory, broker, settings)
+        if n < settings.outbox_batch_size:
+            break
+        await asyncio.sleep(0)  # 让步,避免饿死同进程的 consumer 协程
 
 
 async def relay_loop(
@@ -183,7 +200,7 @@ async def relay_loop(
 
         try:
             # 启动时先扫一次,防止 listener 就绪前落表的行滞留
-            await _drain_once(session_factory, broker, settings)
+            await _drain_until_empty(session_factory, broker, settings)
 
             while not shutdown_event.is_set():
                 with suppress(TimeoutError):
@@ -194,7 +211,7 @@ async def relay_loop(
                 drain.clear()
                 if shutdown_event.is_set():
                     break
-                await _drain_once(session_factory, broker, settings)
+                await _drain_until_empty(session_factory, broker, settings)
         finally:
             await asyncpg_conn.remove_listener(OUTBOX_NOTIFY_CHANNEL, _on_notify)
             log.info("outbox.relay_stopped")
