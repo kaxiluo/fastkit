@@ -32,7 +32,7 @@ async def test_handler_retries_and_succeeds(broker, session_factory, fast_retry_
 
     @task_consumer(
         "test.retry_flow.success",
-        retry=RetryPolicy(max_attempts=3, delay=0),
+        retry=RetryPolicy(max_attempts=3),
         inbox=False,
     )
     async def handler(payload: dict) -> None:

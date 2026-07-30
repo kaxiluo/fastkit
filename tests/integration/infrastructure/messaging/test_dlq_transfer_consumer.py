@@ -41,7 +41,7 @@ async def test_handler_exhausts_retries_and_dead_letters(
 
     @task_consumer(
         "test.dlq_flow.consumer",
-        retry=RetryPolicy(max_attempts=2, delay=0),
+        retry=RetryPolicy(max_attempts=2),
         inbox=False,
     )
     async def handler(payload: dict) -> None:

@@ -13,7 +13,7 @@ from app.modules.example.service import ExampleWidgetService
 @task_consumer(
     "example.widget.requested",
     concurrency=1,
-    retry=RetryPolicy(max_attempts=3, delay=30, backoff="fixed"),
+    retry=RetryPolicy(max_attempts=3, backoff="fixed"),
     inbox=True,
 )
 async def on_example_widget_requested(

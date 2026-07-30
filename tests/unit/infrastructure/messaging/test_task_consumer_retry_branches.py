@@ -69,7 +69,7 @@ async def test_failure_below_max_attempts_republishes():
         wrapped=None,  # type: ignore[arg-type]
         concurrency=1,
         inbox_enabled=False,
-        retry_policy=RetryPolicy(max_attempts=3, delay=30),
+        retry_policy=RetryPolicy(max_attempts=3),
     )
     wrapped = _build_wrapped(spec, inbox_enabled=False, dispatcher=dispatcher)
     await wrapped(
@@ -98,7 +98,7 @@ async def test_failure_at_max_attempts_dead_letters():
         wrapped=None,  # type: ignore[arg-type]
         concurrency=1,
         inbox_enabled=False,
-        retry_policy=RetryPolicy(max_attempts=3, delay=30),
+        retry_policy=RetryPolicy(max_attempts=3),
     )
     wrapped = _build_wrapped(spec, inbox_enabled=False, dispatcher=dispatcher)
     await wrapped(

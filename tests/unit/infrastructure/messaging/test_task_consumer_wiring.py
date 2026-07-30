@@ -57,7 +57,7 @@ def test_retry_true_installs_default_policy():
 def test_retry_policy_explicit_stored_on_spec():
     from app.infrastructure.messaging.retry_policy import RetryPolicy
 
-    policy = RetryPolicy(max_attempts=5, delay=10)
+    policy = RetryPolicy(max_attempts=5)
 
     @task_consumer("test.retry.explicit", retry=policy)
     async def handler(payload: dict) -> None:

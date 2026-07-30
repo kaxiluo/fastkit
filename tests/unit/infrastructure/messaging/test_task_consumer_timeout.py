@@ -40,7 +40,7 @@ async def test_timeout_with_retry_policy_republishes():
         await asyncio.sleep(1.0)
 
     dispatcher = _FakeDispatcher()
-    spec = _spec("t.to.retry", handler, retry_policy=RetryPolicy(max_attempts=3, delay=30))
+    spec = _spec("t.to.retry", handler, retry_policy=RetryPolicy(max_attempts=3))
     wrapped = _build_wrapped(spec, inbox_enabled=False, dispatcher=dispatcher, timeout=0.05)
 
     await wrapped(

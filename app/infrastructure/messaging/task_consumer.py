@@ -104,8 +104,8 @@ def task_consumer(
             全局并发 = 副本数 × concurrency,靠 broker round-robin 均衡;默认 1(串行)。
         retry:
             - False(默认):handler 抛异常 → log.exception + ack + TaskResult.ABORT("handler_exception")
-            - True:使用 RetryPolicy() 默认(max_attempts=3, delay=30)
-            - RetryPolicy(...):显式策略
+            - True:使用 RetryPolicy() 默认(max_attempts=3)
+            - RetryPolicy(...):显式策略(延迟不由 RetryPolicy 控制,见类 docstring)
         timeout: handler 执行超时秒数。
             - 不传(_UNSET):用全局 MessagingSettings.consumer_timeout_seconds
             - None:关闭该 consumer 的超时
@@ -225,7 +225,6 @@ def _build_wrapped(
                     "handler": handler_qualname,
                     "message_id": envelope.get("message_id"),
                     "attempts_after": attempts + 1,
-                    "delay_seconds": retry_policy.delay,
                 },
             )
             return TaskResult.ABORT("retry_scheduled")

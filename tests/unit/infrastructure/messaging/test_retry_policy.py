@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
 from app.infrastructure.messaging.retry_policy import RetryPolicy
@@ -10,14 +12,12 @@ from app.infrastructure.messaging.retry_policy import RetryPolicy
 def test_default_policy():
     p = RetryPolicy()
     assert p.max_attempts == 3
-    assert p.delay == 30
     assert p.backoff == "fixed"
 
 
-def test_explicit_max_attempts_and_delay():
-    p = RetryPolicy(max_attempts=5, delay=10)
+def test_explicit_max_attempts():
+    p = RetryPolicy(max_attempts=5)
     assert p.max_attempts == 5
-    assert p.delay == 10
 
 
 def test_max_attempts_zero_rejected():
@@ -39,3 +39,10 @@ def test_policy_is_frozen():
     p = RetryPolicy()
     with pytest.raises((AttributeError, TypeError)):
         p.max_attempts = 5  # type: ignore[misc]
+
+
+def test_delay_field_removed():
+    """防御性测试:delay 是误导性 dead parameter(实际 TTL 由 retry queue 的
+    x-message-ttl 控制),确保不会被无意加回。"""
+    sig = inspect.signature(RetryPolicy)
+    assert "delay" not in sig.parameters

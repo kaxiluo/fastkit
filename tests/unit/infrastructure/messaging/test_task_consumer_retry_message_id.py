@@ -42,7 +42,7 @@ async def test_retry_uses_fresh_message_id_and_preserves_original():
         wrapped=None,  # type: ignore[arg-type]
         concurrency=1,
         inbox_enabled=False,
-        retry_policy=RetryPolicy(max_attempts=3, delay=30),
+        retry_policy=RetryPolicy(max_attempts=3),
     )
     wrapped = _build_wrapped(spec, inbox_enabled=False, dispatcher=dispatcher)
     await wrapped(
@@ -74,7 +74,7 @@ async def test_retry_chain_accumulates_original_message_id():
         wrapped=None,  # type: ignore[arg-type]
         concurrency=1,
         inbox_enabled=False,
-        retry_policy=RetryPolicy(max_attempts=5, delay=30),
+        retry_policy=RetryPolicy(max_attempts=5),
     )
     wrapped = _build_wrapped(spec, inbox_enabled=False, dispatcher=dispatcher)
 
@@ -112,7 +112,7 @@ async def test_dlq_keeps_latest_message_id_no_fresh_rotation() -> None:
         wrapped=None,  # type: ignore[arg-type]
         concurrency=1,
         inbox_enabled=False,
-        retry_policy=RetryPolicy(max_attempts=3, delay=30),
+        retry_policy=RetryPolicy(max_attempts=3),
     )
     wrapped = _build_wrapped(spec, inbox_enabled=False, dispatcher=dispatcher)
     await wrapped(
