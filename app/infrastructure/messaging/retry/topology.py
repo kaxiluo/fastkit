@@ -22,6 +22,11 @@ async def declare_retry(broker: RabbitBroker, settings: MessagingSettings) -> No
         settings.retry_queue,
         durable=True,
         arguments={
+            # queue-level TTL 作为消息在 retry queue 里的最大停留时间。
+            # 注意:RabbitMQ 对 queue x-message-ttl 和 publish 时的 per-message
+            # expiration 取小。RetryDispatcher.republish_delayed 会施加
+            # [0.9, 1.0] * ttl 的 per-message expiration 做 jitter,这里始终是
+            # 兜底上限 —— 即使 publish 端忘了传 expiration,消息也最迟在 ttl 后回流。
             "x-message-ttl": settings.retry_ttl_ms,
             "x-dead-letter-exchange": "",
             # 不设 x-dead-letter-routing-key → 消息保留原 routing_key,
