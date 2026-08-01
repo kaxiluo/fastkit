@@ -12,18 +12,21 @@ from app.infrastructure.messaging.cron import inbox_retention as _inbox_retentio
 from app.infrastructure.messaging.cron import outbox_retention as _outbox_retention  # noqa: F401
 from app.infrastructure.scheduler.registry import get_registered_cron_jobs
 
+from .container import integrations_lifecycle
 from .lifecycle import AppContext, app_context
 
 
 @asynccontextmanager
 async def scheduler_lifespan() -> AsyncGenerator[AppContext]:
     log = structlog.get_logger()
-    async with app_context() as ctx:
+    async with app_context() as ctx, integrations_lifecycle() as integrations:
         scheduler = AsyncIOScheduler()
         for spec in get_registered_cron_jobs():
             kwargs = {}
             if spec.accepts_session_factory:
                 kwargs["session_factory"] = ctx.session_factory
+            if spec.accepts_integrations:
+                kwargs["integrations"] = integrations
             scheduler.add_job(
                 spec.func,
                 spec.trigger,

@@ -55,6 +55,7 @@ async def test_scheduler_lifespan_registers_jobs_with_and_without_session_factor
     from app.bootstrap.scheduler import scheduler_lifespan
 
     session_factory = MagicMock(name="session_factory")
+    integrations = MagicMock(name="integrations")
     ctx = SimpleNamespace(
         settings=SimpleNamespace(app_name="test-app"),
         session_factory=session_factory,
@@ -67,6 +68,7 @@ async def test_scheduler_lifespan_registers_jobs_with_and_without_session_factor
         misfire_grace_time=10,
         max_instances=1,
         accepts_session_factory=True,
+        accepts_integrations=False,
     )
     spec_without_sf = SimpleNamespace(
         func=lambda: None,
@@ -75,13 +77,24 @@ async def test_scheduler_lifespan_registers_jobs_with_and_without_session_factor
         misfire_grace_time=20,
         max_instances=2,
         accepts_session_factory=False,
+        accepts_integrations=False,
+    )
+    spec_with_integ = SimpleNamespace(
+        func=lambda **_kw: None,
+        trigger=MagicMock(name="trigger3"),
+        job_id="with-integ",
+        misfire_grace_time=30,
+        max_instances=1,
+        accepts_session_factory=False,
+        accepts_integrations=True,
     )
 
     with (
         patch("app.bootstrap.scheduler.app_context", _fake_app_context(ctx)),
+        patch("app.bootstrap.scheduler.integrations_lifecycle", _fake_app_context(integrations)),
         patch(
             "app.bootstrap.scheduler.get_registered_cron_jobs",
-            return_value=[spec_with_sf, spec_without_sf],
+            return_value=[spec_with_sf, spec_without_sf, spec_with_integ],
         ),
         patch("app.bootstrap.scheduler.AsyncIOScheduler") as mock_sched_cls,
     ):
@@ -92,7 +105,7 @@ async def test_scheduler_lifespan_registers_jobs_with_and_without_session_factor
             assert yielded is ctx
 
     add_job_calls = mock_sched.add_job.call_args_list
-    assert len(add_job_calls) == 2
+    assert len(add_job_calls) == 3
 
     first = add_job_calls[0]
     assert first.args[0] is spec_with_sf.func
@@ -114,6 +127,16 @@ async def test_scheduler_lifespan_registers_jobs_with_and_without_session_factor
         "max_instances": 2,
     }
 
+    third = add_job_calls[2]
+    assert third.args[0] is spec_with_integ.func
+    assert third.args[1] is spec_with_integ.trigger
+    assert third.kwargs == {
+        "kwargs": {"integrations": integrations},
+        "id": "with-integ",
+        "misfire_grace_time": 30,
+        "max_instances": 1,
+    }
+
     mock_sched.start.assert_called_once_with()
     mock_sched.shutdown.assert_called_once_with(wait=False)
 
@@ -131,6 +154,7 @@ async def test_scheduler_lifespan_with_no_cron_jobs_skips_loop_body() -> None:
 
     with (
         patch("app.bootstrap.scheduler.app_context", _fake_app_context(ctx)),
+        patch("app.bootstrap.scheduler.integrations_lifecycle", _fake_app_context(MagicMock())),
         patch("app.bootstrap.scheduler.get_registered_cron_jobs", return_value=[]),
         patch("app.bootstrap.scheduler.AsyncIOScheduler") as mock_sched_cls,
     ):
