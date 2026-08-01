@@ -168,7 +168,7 @@
            return FooItem.model_validate(resp.json())
    ```
 
-3. 在 `app/bootstrap/container.py` 添加客户端生命周期：
+3. 在 `app/bootstrap/container.py` 添加客户端生命周期，并接入 `Integrations` bundle：
 
    ```python
    from app.integrations.<provider>.client import FooClient
@@ -181,4 +181,8 @@
            yield FooClient(http)
    ```
 
-4. 接入 DI：参考 `app/bootstrap/api.py` 中 dummyjson 的完整接入方式
+   然后在 `app/integrations/bundle.py` 的 `Integrations` 加 `foo: FooClient` 字段，在 `integrations_lifecycle()` 里 `foo = await stack.enter_async_context(foo_client_ctx())`。
+
+4. 接入 DI：
+   - API：`_ContextProvider` 加 `@provide def foo_client(self) -> FooClient: return self._integrations.foo`，路由 `FromDishka[FooClient]`。
+   - Worker/Scheduler：handler 声明 `integrations: Integrations`，用 `integrations.foo`；无需改注入管道。

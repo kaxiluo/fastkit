@@ -116,6 +116,8 @@ tests/                  # unit / integration / contract(e2e 按需新增)
 
 > Settings 按组件拆分:`AppSettings`(全局 `APP_` / `LOG_` 字段)在 `app/config/settings.py`;`DatabaseSettings` / `RedisSettings` / `MessagingSettings` / `RateLimitSettings` / `DummyJsonSettings` 各落对应模块下的 `settings.py`,字段总览见 `AppSettings` docstring。
 
+> integration 客户端经 `Integrations` bundle(`app/integrations/bundle.py`)+ `integrations_lifecycle()` 三进程统一可注入:API 走 dishka per-client `@provide`,Worker/Scheduler 在 handler 声明 `integrations` 参数获取。
+
 - 业务开发指南(新增模块 / 加配置 / 加定时任务 / 加集成)→ [`docs/development-guide.md`](./docs/development-guide.md)
 - 编码规范(async 优先 / 模块边界 / 事务 / 异常 / 消息契约 / 表设计)→ [`docs/coding-standards.md`](./docs/coding-standards.md)
 - 数据迁移(双轨目录 / 命令 / 约定)→ [`alembic/README.md`](./alembic/README.md)
