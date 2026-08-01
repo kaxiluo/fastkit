@@ -14,20 +14,21 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.config.settings import AppSettings
 from app.infrastructure.messaging import EventRegistry, Messaging
+from app.integrations.bundle import Integrations
 from app.integrations.dummyjson.client import DummyJsonClient
 from app.modules.example import events as _example_events  # noqa: F401  触发 @event 注册
 
-from .container import dummyjson_client_ctx
+from .container import integrations_lifecycle
 from .lifecycle import AppContext, app_context
 
 
 class _ContextProvider(Provider):
     scope = Scope.APP
 
-    def __init__(self, ctx: AppContext, dummyjson: DummyJsonClient) -> None:
+    def __init__(self, ctx: AppContext, integrations: Integrations) -> None:
         super().__init__()
         self._ctx = ctx
-        self._dummyjson = dummyjson
+        self._integrations = integrations
 
     @provide
     def settings(self) -> AppSettings:
@@ -59,7 +60,7 @@ class _ContextProvider(Provider):
 
     @provide
     def dummyjson_client(self) -> DummyJsonClient:
-        return self._dummyjson
+        return self._integrations.dummyjson
 
 
 def setup_api(app: FastAPI) -> None:
@@ -78,10 +79,10 @@ def setup_api(app: FastAPI) -> None:
 @asynccontextmanager
 async def api_lifespan(app: FastAPI) -> AsyncGenerator[None]:
     log = structlog.get_logger()
-    async with app_context() as ctx, dummyjson_client_ctx() as dummyjson:
+    async with app_context() as ctx, integrations_lifecycle() as integrations:
         await ctx.messaging.start_publishing_only()
         log.info("api.started", app_name=ctx.settings.app_name)
-        container = make_async_container(_ContextProvider(ctx, dummyjson))
+        container = make_async_container(_ContextProvider(ctx, integrations))
         # 注入真实 container,ContainerMiddleware 在请求时按此键读取
         app.state.dishka_container = container
         try:

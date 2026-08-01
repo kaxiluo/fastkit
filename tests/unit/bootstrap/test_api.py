@@ -29,9 +29,9 @@ def test_context_provider_exposes_all_app_context_dependencies() -> None:
         broker=MagicMock(name="broker"),
         messaging=SimpleNamespace(registry=MagicMock(name="registry")),
     )
-    dummyjson = MagicMock(name="dummyjson")
+    integrations = SimpleNamespace(dummyjson=MagicMock(name="dummyjson"))
 
-    provider = _ContextProvider(ctx, dummyjson)
+    provider = _ContextProvider(ctx, integrations)
 
     assert provider.settings() is ctx.settings
     assert provider.engine() is ctx.engine
@@ -39,7 +39,7 @@ def test_context_provider_exposes_all_app_context_dependencies() -> None:
     assert provider.broker() is ctx.broker
     assert provider.session_factory() is ctx.session_factory
     assert provider.messaging() is ctx.messaging
-    assert provider.dummyjson_client() is dummyjson
+    assert provider.dummyjson_client() is integrations.dummyjson
     assert provider.events(ctx.messaging) is ctx.messaging.registry
 
 
@@ -63,7 +63,7 @@ async def test_api_lifespan_injects_container_and_cleans_up_on_exit() -> None:
         settings=SimpleNamespace(app_name="test-app"),
         messaging=messaging,
     )
-    dummyjson = MagicMock(name="dummyjson")
+    integrations = SimpleNamespace(dummyjson=MagicMock(name="dummyjson"))
     fake_container = MagicMock(name="container")
     fake_container.close = AsyncMock()
 
@@ -72,14 +72,14 @@ async def test_api_lifespan_injects_container_and_cleans_up_on_exit() -> None:
         yield ctx
 
     @asynccontextmanager
-    async def fake_dummyjson_ctx() -> AsyncGenerator[MagicMock]:
-        yield dummyjson
+    async def fake_integrations_lifecycle() -> AsyncGenerator[SimpleNamespace]:
+        yield integrations
 
     app = FastAPI()
 
     with (
         patch("app.bootstrap.api.app_context", fake_app_context),
-        patch("app.bootstrap.api.dummyjson_client_ctx", fake_dummyjson_ctx),
+        patch("app.bootstrap.api.integrations_lifecycle", fake_integrations_lifecycle),
         patch("app.bootstrap.api.make_async_container", return_value=fake_container),
     ):
         async with api_lifespan(app):
