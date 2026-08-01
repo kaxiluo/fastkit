@@ -11,14 +11,15 @@ from faststream.rabbit import RabbitBroker
 from app.modules.example import consumers as _example_consumers  # noqa: F401  触发 @task_consumer
 from app.modules.example import events as _example_events  # noqa: F401  触发 @event 注册
 
+from .container import integrations_lifecycle
 from .lifecycle import AppContext, app_context
 
 
 @asynccontextmanager
 async def worker_lifespan(broker: RabbitBroker | None = None) -> AsyncGenerator[AppContext]:
     log = structlog.get_logger()
-    async with app_context(broker=broker) as ctx:
-        await ctx.messaging.start_consumers()
+    async with app_context(broker=broker) as ctx, integrations_lifecycle() as integrations:
+        await ctx.messaging.start_consumers(integrations=integrations)
         log.info("worker.started", app_name=ctx.settings.app_name)
         try:
             yield ctx

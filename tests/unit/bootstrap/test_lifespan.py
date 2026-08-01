@@ -37,12 +37,16 @@ async def test_worker_lifespan_starts_consumers_then_stops_messaging() -> None:
         messaging=messaging,
     )
     broker = MagicMock(name="broker")
+    integrations = MagicMock(name="integrations")
 
-    with patch("app.bootstrap.worker.app_context", _fake_app_context(ctx)):
+    with (
+        patch("app.bootstrap.worker.app_context", _fake_app_context(ctx)),
+        patch("app.bootstrap.worker.integrations_lifecycle", _fake_app_context(integrations)),
+    ):
         async with worker_lifespan(broker=broker) as yielded:
             assert yielded is ctx
 
-    messaging.start_consumers.assert_awaited_once_with()
+    messaging.start_consumers.assert_awaited_once_with(integrations=integrations)
     messaging.stop.assert_awaited_once_with()
 
 
