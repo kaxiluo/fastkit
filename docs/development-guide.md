@@ -124,6 +124,16 @@
            ...
    ```
 
+   需要外部 client 时，加 `integrations: Integrations` 参数（同 `session_factory` 一样由框架按参数名自动注入）：
+
+   ```python
+   from app.integrations.bundle import Integrations
+
+   @cron_job(CronTrigger(minute="*/5"), job_id="<域>.my_job")
+   async def my_job(integrations: Integrations) -> None:
+       product = await integrations.dummyjson.get_product(1)
+   ```
+
 2. 在 `app/bootstrap/scheduler.py` import 该模块：
 
    ```python
@@ -181,7 +191,16 @@
            yield FooClient(http)
    ```
 
-   然后在 `app/integrations/bundle.py` 的 `Integrations` 加 `foo: FooClient` 字段，在 `integrations_lifecycle()` 里 `foo = await stack.enter_async_context(foo_client_ctx())`。
+   然后在 `app/integrations/bundle.py` 的 `Integrations` 加 `foo: FooClient` 字段，在 `integrations_lifecycle()` 里多 enter 一层并 `yield Integrations(foo=foo)`：
+
+   ```python
+   @asynccontextmanager
+   async def integrations_lifecycle() -> AsyncGenerator[Integrations]:
+       async with AsyncExitStack() as stack:
+           dummyjson = await stack.enter_async_context(dummyjson_client_ctx())
+           foo = await stack.enter_async_context(foo_client_ctx())
+           yield Integrations(dummyjson=dummyjson, foo=foo)
+   ```
 
 4. 接入 DI：
    - API：`_ContextProvider` 加 `@provide def foo_client(self) -> FooClient: return self._integrations.foo`，路由 `FromDishka[FooClient]`。

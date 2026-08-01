@@ -44,6 +44,9 @@ dummyjson 是可删示例;bundle 机制(`bundle.py` / `integrations_lifecycle()`
 | `DUMMYJSON_BASE_URL` | `https://dummyjson.com` | API 根地址 |
 | `DUMMYJSON_TIMEOUT` | `10.0` | HTTP 超时秒数 |
 
+> 这些变量有默认值，且 dummyjson 是可删 demo，**不入 `.env.example`**；
+> 真实业务 integration 出现时，其 env var 才进 `.env.example`。
+
 ## 新增 Integration 参考步骤
 
 1. 在 `integrations/<provider>/` 新建目录

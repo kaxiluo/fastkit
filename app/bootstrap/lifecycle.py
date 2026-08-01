@@ -1,8 +1,8 @@
 """框架无关的进程级资源编排。
 
 app_context() 按序创建所有进程共享的基础资源(DB -> Redis -> broker + Messaging),
-yield AppContext,退出时逆序关闭。API 进程特有资源(如 DummyJsonClient)不在这里,
-由各进程 bootstrap 文件单独管。
+yield AppContext,退出时逆序关闭。Integration client(dummyjson 等)不在这里,
+由 bootstrap/container.py 的 integrations_lifecycle() 收口,各进程 bootstrap 单独 enter。
 
 broker 参数：外部传入时直接复用（worker 进程把同一 broker 传给 AsgiFastStream），
             不传时自建（api、scheduler 进程各自管理连接）。
