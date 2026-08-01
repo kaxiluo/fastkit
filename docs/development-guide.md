@@ -136,7 +136,7 @@
        ...
    ```
 
-   > 注意：业务侧调 `.get(<Client>)` 要求该 client 在本进程对应的 `*_CLIENTS` 清单（`app/bootstrap/container.py` 的 `API_CLIENTS` / `WORKER_CLIENTS` / `SCHEDULER_CLIENTS`）里装配过；Scheduler 默认零装配（`SCHEDULER_CLIENTS = ()`），按需把对应 `*_client_ctx` 加进 `SCHEDULER_CLIENTS`。
+   > Scheduler 默认零装配（`SCHEDULER_CLIENTS = ()`），`.get(<Client>)` 会抛 `ClientNotRegisteredError`；把对应 `*_client_ctx` 加进 `SCHEDULER_CLIENTS`（见"加外部 HTTP 集成"第 4 步）才能使用。
 
 2. 在 `app/bootstrap/scheduler.py` import 该模块：
 
@@ -195,9 +195,7 @@
            yield FooClient(http)
    ```
 
-   **不需要**改 `Integrations` 类（registry 自动按 type 索引）；**不需要**改 `integrations_lifecycle()` 主体（它接受变长 `*ctx_providers`）；**不需要**改 lifespan 文件（body 永远是 `integrations_lifecycle(*<NAME>_CLIENTS)`）。
-
-4. **三进程按需显式装配**（全在 `app/bootstrap/container.py`，lifespan 文件零改动）：
+4. **三进程按需显式装配**：
    - 把 `foo_client_ctx` 加进用到的进程对应的清单：API 用 → 加进 `API_CLIENTS`；Worker 用 → 加进 `WORKER_CLIENTS`；Scheduler 用 → 加进 `SCHEDULER_CLIENTS`（tuple，逗号分隔）。
    - Scheduler 默认零装配（`SCHEDULER_CLIENTS = ()`）；只有当某 cron 真要用 `FooClient` 时才加。未装配的进程不会被 `FooSettings` 缺失阻塞。
    - API DI：`_ContextProvider` 加 `@provide def foo_client(self) -> FooClient: return self._integrations.get(FooClient)`，路由 `FromDishka[FooClient]`。

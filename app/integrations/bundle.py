@@ -1,23 +1,7 @@
-"""Integration 客户端聚合体:进程级 client 注册表(Service Locator 模式)。
+"""Integration 客户端聚合体:进程级 client 注册表。
 
-进程装配显式声明:bootstrap/container.py 的 API_CLIENTS / WORKER_CLIENTS /
-SCHEDULER_CLIENTS 三个清单各填一份 *_client_ctx(),lifespan body 统一为
-integrations_lifecycle(*<NAME>_CLIENTS)。未列入清单的 client 不会被 enter,
-其 settings 也不会被读 → 三进程互不强耦合对方不需要的 client 配置(例如
-Scheduler 不需要某 client,该 client 的 settings 缺失也不会阻塞 Scheduler 启动)。
-
-新增业务 client 的步骤:
-1. 写一个 <name>_client_ctx() async context manager,返回 AsyncGenerator[<Name>Client]
-2. 在 app/bootstrap/container.py 把 <name>_client_ctx 加进用到的进程对应的
-   *_CLIENTS 清单(API_CLIENTS / WORKER_CLIENTS / SCHEDULER_CLIENTS)
-3. API 在 _ContextProvider 加一个 @provide,返回 self._integrations.get(<Name>Client)
-4. 业务侧 handler 经 `*, integrations: Integrations` 拿 bundle,内部 .get(<Name>Client) 取
-
-多实例:**拆成不同的独立类**(如 `<A>Client` / `<B>Client`),
-不用 (type, name) 二元 key —— 保持类型安全、业务侧调用的明确性、IDE 跳转可用。
-
-Service Locator 在本场景不是 anti-pattern:bundle 由进程 lifespan 显式构造,通过
-handler 参数注入(非全局单例);单测直接 mock 整个 Integrations 对象即可。
+未列入进程 *_CLIENTS 清单的 client 不会被 enter,其 settings 也不会被读,
+三进程互不强耦合对方不需要的配置。新增 client 见 docs/development-guide.md。
 """
 
 from __future__ import annotations

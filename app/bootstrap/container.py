@@ -60,14 +60,9 @@ async def integrations_lifecycle(
 ) -> AsyncGenerator[Integrations]:
     """进程级 integration 客户端聚合生命周期(Composition Root 显式装配)。
 
-    只 enter 列表里的 *_client_ctx()。三进程各自声明,互不强耦合:
+    只 enter 传入的 *_client_ctx(),按 type 注册进 Integrations registry。
     未列入的 client 不 enter → 其 settings 不被读 → 该进程零配置可启动。
-    被列入的 client 的 settings 缺失仍会启动期 fail-fast(ValidationError),
-    保留 fail-fast 原则。
-
-    新增业务 client:写一个 <name>_client_ctx(),加进用到的进程对应的
-    *_CLIENTS 清单(API_CLIENTS / WORKER_CLIENTS / SCHEDULER_CLIENTS)。
-    lifespan 文件不改 —— body 永远是 integrations_lifecycle(*<NAME>_CLIENTS)。
+    被列入的 client 的 settings 缺失仍会启动期 fail-fast(ValidationError)。
     """
     async with AsyncExitStack() as stack:
         integrations = Integrations()

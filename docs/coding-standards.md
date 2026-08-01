@@ -15,8 +15,7 @@
 - 三入口(HTTP/consumer/scheduler)只做协议翻译,业务逻辑只写一份落 `service.py`
 - 对外 HTTP 调用收敛到 `app/integrations/<provider>/`,客户端轻薄,**不自动重试**
 - DI 不挂业务 Provider:service / router 直接 `FromDishka[session_factory / EventRegistry / ...]` 取 infrastructure 资源
-- Worker consumer / Scheduler cron 需外部 client 时,handler 声明 `*, integrations: Integrations`,内部 `integrations.get(<Client>)` 取(bundle 由 `bootstrap/container.py` 的 `*_CLIENTS` 清单声明、进程 lifespan 通过 `integrations_lifecycle(*<NAME>_CLIENTS)` 装配);不在 handler 内自建 httpx client
-- 多实例拆类(`<A>Client` / `<B>Client`),不用 (type, name) 二元 key
+- Worker consumer / Scheduler cron 需外部 client 时,handler 声明 `*, integrations: Integrations`,内部 `integrations.get(<Client>)` 取;多实例拆类(`<A>Client` / `<B>Client`),不用 (type, name) 二元 key;不在 handler 内自建 httpx client
 
 ## 3. 事务边界
 
