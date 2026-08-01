@@ -94,3 +94,13 @@ async def test_api_lifespan_injects_container_and_cleans_up_on_exit() -> None:
 async def test_dummyjson_client_ctx_yields_dummyjson_client() -> None:
     async with dummyjson_client_ctx() as client:
         assert isinstance(client, DummyJsonClient)
+
+
+@pytest.mark.asyncio
+async def test_integrations_lifecycle_yields_bundle_with_dummyjson() -> None:
+    from app.bootstrap.container import integrations_lifecycle
+    from app.integrations.bundle import Integrations
+
+    async with integrations_lifecycle() as integrations:
+        assert isinstance(integrations, Integrations)
+        assert isinstance(integrations.dummyjson, DummyJsonClient)

@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 
 import httpx
 
@@ -17,6 +17,7 @@ from app.infrastructure.database.engine import build_engine, engine_lifecycle
 from app.infrastructure.database.session import build_session_factory
 from app.infrastructure.messaging.broker import build_broker
 from app.infrastructure.redis.client import redis_lifecycle
+from app.integrations.bundle import Integrations
 from app.integrations.dummyjson.client import DummyJsonClient
 from app.integrations.dummyjson.settings import get_dummyjson_settings
 
@@ -26,6 +27,7 @@ __all__ = [
     "build_session_factory",
     "dummyjson_client_ctx",
     "engine_lifecycle",
+    "integrations_lifecycle",
     "redis_lifecycle",
 ]
 
@@ -39,3 +41,14 @@ async def dummyjson_client_ctx() -> AsyncGenerator[DummyJsonClient]:
         timeout=cfg.timeout,
     ) as http:
         yield DummyJsonClient(http)
+
+
+@asynccontextmanager
+async def integrations_lifecycle() -> AsyncGenerator[Integrations]:
+    """进程级 integration 客户端聚合生命周期。
+
+    新增业务 client:多 enter 一层 <name>_client_ctx() + Integrations 加一个字段。
+    """
+    async with AsyncExitStack() as stack:
+        dummyjson = await stack.enter_async_context(dummyjson_client_ctx())
+        yield Integrations(dummyjson=dummyjson)
