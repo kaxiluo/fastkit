@@ -13,5 +13,5 @@ from app.integrations.dummyjson.client import DummyJsonClient
 
 @dataclass
 class Integrations:
-    dummyjson: DummyJsonClient
+    dummyjson: DummyJsonClient  # demo:dummyjson —— 删除示例时连带删
     # 新增业务 client:这里加一个字段

@@ -58,6 +58,7 @@ class _ContextProvider(Provider):
     def events(self, messaging: Messaging) -> EventRegistry:
         return messaging.registry
 
+    # demo:dummyjson —— 删除示例时连带删本 provide
     @provide
     def dummyjson_client(self) -> DummyJsonClient:
         return self._integrations.dummyjson

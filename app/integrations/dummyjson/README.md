@@ -29,6 +29,12 @@ async def handler(msg: SomeEvent, *, integrations: Integrations) -> None:
     product = await integrations.dummyjson.get_product(1)
 ```
 
+## 移除本示例
+
+dummyjson 是可删示例;bundle 机制(`bundle.py` / `integrations_lifecycle()` / 三进程穿线)是框架,**保留**。
+
+`grep -rin dummyjson` 看全部提及;删标了 `demo:dummyjson` 的接线行 + `app/integrations/dummyjson/` 包及其 tests,再 `uv run ruff check --fix` 清 now-unused import。删空后 `Integrations` 空 dataclass 合法。
+
 ## 配置
 
 `base_url` 与 `timeout` 通过 `app/integrations/dummyjson/settings.py` 的 `DummyJsonSettings` 声明，`bootstrap/container.py:dummyjson_client_ctx()` 内 `get_dummyjson_settings()` 读取：

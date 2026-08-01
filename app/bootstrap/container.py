@@ -25,13 +25,14 @@ __all__ = [
     "build_broker",
     "build_engine",
     "build_session_factory",
-    "dummyjson_client_ctx",
+    "dummyjson_client_ctx",  # demo:dummyjson
     "engine_lifecycle",
     "integrations_lifecycle",
     "redis_lifecycle",
 ]
 
 
+# demo:dummyjson —— 删除示例时连带删本函数
 @asynccontextmanager
 async def dummyjson_client_ctx() -> AsyncGenerator[DummyJsonClient]:
     """DummyJsonClient 生命周期:进程级单例,连接池复用。"""
@@ -50,5 +51,5 @@ async def integrations_lifecycle() -> AsyncGenerator[Integrations]:
     新增业务 client:多 enter 一层 <name>_client_ctx() + Integrations 加一个字段。
     """
     async with AsyncExitStack() as stack:
-        dummyjson = await stack.enter_async_context(dummyjson_client_ctx())
+        dummyjson = await stack.enter_async_context(dummyjson_client_ctx())  # demo:dummyjson
         yield Integrations(dummyjson=dummyjson)
