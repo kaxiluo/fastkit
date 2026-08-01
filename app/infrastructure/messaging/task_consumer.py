@@ -63,6 +63,7 @@ class _ConsumerSpec:
     payload_adapter: TypeAdapter | None = field(init=False, default=None)
     accepts_session_factory: bool = field(init=False, default=False)
     accepts_envelope: bool = field(init=False, default=False)
+    accepts_integrations: bool = field(init=False, default=False)
 
     def __post_init__(self):
         self.handler_qualname = self.handler.__qualname__
@@ -76,6 +77,7 @@ class _ConsumerSpec:
                 self.payload_adapter = TypeAdapter(first_type)
         self.accepts_session_factory = "session_factory" in params
         self.accepts_envelope = "envelope" in params
+        self.accepts_integrations = "integrations" in params
 
 
 _PENDING_CONSUMERS: list[_ConsumerSpec] = []
@@ -157,7 +159,7 @@ def _build_wrapped(
     dispatcher: Any,  # RetryDispatcher | None;None 时降级为仅 ack
     timeout: float | None = None,
 ) -> Callable:
-    """返回一个协程:接受 (payload, *, envelope, session_factory) → TaskResult。
+    """返回一个协程:接受 (payload, *, envelope, session_factory, integrations) → TaskResult。
 
     异常三分支:
       1. handler 成功 → FINISHED
@@ -171,7 +173,7 @@ def _build_wrapped(
     original_queue = spec.routing_key
 
     @wraps(handler)
-    async def wrapped(payload, *, envelope: dict, session_factory: Any):
+    async def wrapped(payload, *, envelope: dict, session_factory: Any, integrations: Any = None):
         async def _route_failure(exc: BaseException) -> TaskResult:
             attempts = max(1, int(envelope.get("attempts", 1)))
             # 无 dispatcher(未经过 engine 绑定):仅 ack,不进 retry/DLQ
@@ -257,6 +259,8 @@ def _build_wrapped(
             handler_kwargs["session_factory"] = session_factory
         if spec.accepts_envelope:
             handler_kwargs["envelope"] = envelope
+        if spec.accepts_integrations:
+            handler_kwargs["integrations"] = integrations
 
         try:
             if timeout is None:

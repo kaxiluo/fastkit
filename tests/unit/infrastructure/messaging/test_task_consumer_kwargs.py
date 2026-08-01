@@ -81,6 +81,34 @@ async def test_handler_receives_envelope_when_declared():
     assert seen["v"] == 9
 
 
+async def test_handler_receives_integrations_when_declared():
+    seen = {}
+
+    @task_consumer("t.integ", inbox=False, retry=False)
+    async def h(msg: _Payload, *, integrations) -> None:
+        seen["integrations"] = integrations
+        seen["v"] = msg.v
+
+    sentinel = object()
+    spec = _get_spec("t.integ")
+    wrapped = _build_wrapped(spec, inbox_enabled=False, dispatcher=None)
+    await wrapped(
+        {"message_version": 1, "v": 3},
+        envelope={"attempts": 1, "message_id": "i"},
+        session_factory=object(),
+        integrations=sentinel,
+    )
+    assert seen == {"integrations": sentinel, "v": 3}
+
+
+async def test_spec_detects_integrations_param():
+    @task_consumer("t.integ.detect", inbox=False, retry=False)
+    async def h(msg: _Payload, *, integrations) -> None:
+        pass
+
+    assert _get_spec("t.integ.detect").accepts_integrations is True
+
+
 def _get_spec(routing_key: str) -> _ConsumerSpec:
     from app.infrastructure.messaging.task_consumer import get_pending_consumers
 
