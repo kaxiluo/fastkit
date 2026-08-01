@@ -99,3 +99,19 @@ def test_clear_empties_registry():
     assert len(get_registered_cron_jobs()) == 1
     clear_registered_cron_jobs()
     assert get_registered_cron_jobs() == []
+
+
+def test_spec_detects_integrations_param():
+    @cron_job(CronTrigger(hour=10), job_id="with_integ")
+    async def with_integ(integrations) -> None:
+        pass
+
+    assert get_registered_cron_jobs()[0].accepts_integrations is True
+
+
+def test_spec_no_integrations_param():
+    @cron_job(CronTrigger(hour=11), job_id="no_integ")
+    async def no_integ() -> None:
+        pass
+
+    assert get_registered_cron_jobs()[0].accepts_integrations is False
