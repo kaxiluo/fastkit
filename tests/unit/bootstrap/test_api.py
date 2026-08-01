@@ -29,7 +29,9 @@ def test_context_provider_exposes_all_app_context_dependencies() -> None:
         broker=MagicMock(name="broker"),
         messaging=SimpleNamespace(registry=MagicMock(name="registry")),
     )
-    integrations = SimpleNamespace(dummyjson=MagicMock(name="dummyjson"))
+    dummyjson = MagicMock(name="dummyjson")
+    integrations = MagicMock(name="integrations")
+    integrations.get.return_value = dummyjson
 
     provider = _ContextProvider(ctx, integrations)
 
@@ -39,7 +41,8 @@ def test_context_provider_exposes_all_app_context_dependencies() -> None:
     assert provider.broker() is ctx.broker
     assert provider.session_factory() is ctx.session_factory
     assert provider.messaging() is ctx.messaging
-    assert provider.dummyjson_client() is integrations.dummyjson
+    assert provider.dummyjson_client() is dummyjson
+    integrations.get.assert_called_once_with(DummyJsonClient)
     assert provider.events(ctx.messaging) is ctx.messaging.registry
 
 
@@ -55,6 +58,8 @@ def test_setup_api_registers_container_middleware_and_resets_state() -> None:
 
 @pytest.mark.asyncio
 async def test_api_lifespan_injects_container_and_cleans_up_on_exit() -> None:
+    from app.bootstrap.container import dummyjson_client_ctx
+
     messaging = SimpleNamespace(
         start_publishing_only=AsyncMock(),
         stop=AsyncMock(),
@@ -63,16 +68,19 @@ async def test_api_lifespan_injects_container_and_cleans_up_on_exit() -> None:
         settings=SimpleNamespace(app_name="test-app"),
         messaging=messaging,
     )
-    integrations = SimpleNamespace(dummyjson=MagicMock(name="dummyjson"))
+    integrations = MagicMock(name="integrations")
+    integrations.get.return_value = MagicMock(name="dummyjson")
     fake_container = MagicMock(name="container")
     fake_container.close = AsyncMock()
+    captured_providers: list = []
 
     @asynccontextmanager
     async def fake_app_context() -> AsyncGenerator[SimpleNamespace]:
         yield ctx
 
     @asynccontextmanager
-    async def fake_integrations_lifecycle() -> AsyncGenerator[SimpleNamespace]:
+    async def fake_integrations_lifecycle(*ctx_providers) -> AsyncGenerator:
+        captured_providers.extend(ctx_providers)
         yield integrations
 
     app = FastAPI()
@@ -85,6 +93,7 @@ async def test_api_lifespan_injects_container_and_cleans_up_on_exit() -> None:
         async with api_lifespan(app):
             assert app.state.dishka_container is fake_container
 
+    assert dummyjson_client_ctx in captured_providers
     messaging.start_publishing_only.assert_awaited_once_with()
     messaging.stop.assert_awaited_once_with()
     fake_container.close.assert_awaited_once_with()
@@ -97,10 +106,23 @@ async def test_dummyjson_client_ctx_yields_dummyjson_client() -> None:
 
 
 @pytest.mark.asyncio
-async def test_integrations_lifecycle_yields_bundle_with_dummyjson() -> None:
-    from app.bootstrap.container import integrations_lifecycle
+async def test_integrations_lifecycle_with_providers_registers_clients() -> None:
+    from app.bootstrap.container import dummyjson_client_ctx, integrations_lifecycle
     from app.integrations.bundle import Integrations
+
+    async with integrations_lifecycle(dummyjson_client_ctx) as integrations:
+        assert isinstance(integrations, Integrations)
+        assert isinstance(integrations.get(DummyJsonClient), DummyJsonClient)
+
+
+@pytest.mark.asyncio
+async def test_integrations_lifecycle_with_no_providers_yields_empty_bundle() -> None:
+    """零装配:验证不需要 integration 的进程(如 Scheduler)可启动,
+    不会因无关 client 的 settings 缺失而 fail-fast。"""
+    from app.bootstrap.container import integrations_lifecycle
+    from app.integrations.bundle import ClientNotRegisteredError, Integrations
 
     async with integrations_lifecycle() as integrations:
         assert isinstance(integrations, Integrations)
-        assert isinstance(integrations.dummyjson, DummyJsonClient)
+        with pytest.raises(ClientNotRegisteredError):
+            integrations.get(DummyJsonClient)

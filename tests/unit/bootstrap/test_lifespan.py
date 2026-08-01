@@ -26,6 +26,7 @@ def _fake_app_context(ctx: SimpleNamespace):
 
 @pytest.mark.asyncio
 async def test_worker_lifespan_starts_consumers_then_stops_messaging() -> None:
+    from app.bootstrap.container import dummyjson_client_ctx
     from app.bootstrap.worker import worker_lifespan
 
     messaging = SimpleNamespace(
@@ -38,14 +39,21 @@ async def test_worker_lifespan_starts_consumers_then_stops_messaging() -> None:
     )
     broker = MagicMock(name="broker")
     integrations = MagicMock(name="integrations")
+    captured_providers: list = []
+
+    @asynccontextmanager
+    async def capturing_integrations_lifecycle(*ctx_providers) -> AsyncGenerator:
+        captured_providers.extend(ctx_providers)
+        yield integrations
 
     with (
         patch("app.bootstrap.worker.app_context", _fake_app_context(ctx)),
-        patch("app.bootstrap.worker.integrations_lifecycle", _fake_app_context(integrations)),
+        patch("app.bootstrap.worker.integrations_lifecycle", capturing_integrations_lifecycle),
     ):
         async with worker_lifespan(broker=broker) as yielded:
             assert yielded is ctx
 
+    assert dummyjson_client_ctx in captured_providers
     messaging.start_consumers.assert_awaited_once_with(integrations=integrations)
     messaging.stop.assert_awaited_once_with()
 
@@ -56,6 +64,12 @@ async def test_scheduler_lifespan_registers_jobs_with_and_without_session_factor
 
     session_factory = MagicMock(name="session_factory")
     integrations = MagicMock(name="integrations")
+    captured_providers: list = []
+
+    @asynccontextmanager
+    async def capturing_integrations_lifecycle(*ctx_providers) -> AsyncGenerator:
+        captured_providers.extend(ctx_providers)
+        yield integrations
     ctx = SimpleNamespace(
         settings=SimpleNamespace(app_name="test-app"),
         session_factory=session_factory,
@@ -91,7 +105,7 @@ async def test_scheduler_lifespan_registers_jobs_with_and_without_session_factor
 
     with (
         patch("app.bootstrap.scheduler.app_context", _fake_app_context(ctx)),
-        patch("app.bootstrap.scheduler.integrations_lifecycle", _fake_app_context(integrations)),
+        patch("app.bootstrap.scheduler.integrations_lifecycle", capturing_integrations_lifecycle),
         patch(
             "app.bootstrap.scheduler.get_registered_cron_jobs",
             return_value=[spec_with_sf, spec_without_sf, spec_with_integ],
@@ -139,6 +153,7 @@ async def test_scheduler_lifespan_registers_jobs_with_and_without_session_factor
 
     mock_sched.start.assert_called_once_with()
     mock_sched.shutdown.assert_called_once_with(wait=False)
+    assert captured_providers == [], "Scheduler 必须零装配 integration client"
 
 
 @pytest.mark.asyncio

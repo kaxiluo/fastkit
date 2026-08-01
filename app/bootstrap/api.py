@@ -1,4 +1,4 @@
-"""API 进程 lifespan 组装:app_context() + dummyjson_client_ctx() + dishka。"""
+"""API 进程 lifespan 组装:app_context() + integrations_lifecycle(*API_CLIENTS) + dishka。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from app.integrations.bundle import Integrations
 from app.integrations.dummyjson.client import DummyJsonClient
 from app.modules.example import events as _example_events  # noqa: F401  触发 @event 注册
 
-from .container import integrations_lifecycle
+from .container import API_CLIENTS, integrations_lifecycle
 from .lifecycle import AppContext, app_context
 
 
@@ -61,7 +61,7 @@ class _ContextProvider(Provider):
     # demo:dummyjson —— 删除示例时连带删本 provide
     @provide
     def dummyjson_client(self) -> DummyJsonClient:
-        return self._integrations.dummyjson
+        return self._integrations.get(DummyJsonClient)
 
 
 def setup_api(app: FastAPI) -> None:
@@ -80,7 +80,7 @@ def setup_api(app: FastAPI) -> None:
 @asynccontextmanager
 async def api_lifespan(app: FastAPI) -> AsyncGenerator[None]:
     log = structlog.get_logger()
-    async with app_context() as ctx, integrations_lifecycle() as integrations:
+    async with app_context() as ctx, integrations_lifecycle(*API_CLIENTS) as integrations:
         await ctx.messaging.start_publishing_only()
         log.info("api.started", app_name=ctx.settings.app_name)
         container = make_async_container(_ContextProvider(ctx, integrations))

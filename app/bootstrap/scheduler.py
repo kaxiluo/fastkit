@@ -12,14 +12,16 @@ from app.infrastructure.messaging.cron import inbox_retention as _inbox_retentio
 from app.infrastructure.messaging.cron import outbox_retention as _outbox_retention  # noqa: F401
 from app.infrastructure.scheduler.registry import get_registered_cron_jobs
 
-from .container import integrations_lifecycle
+from .container import SCHEDULER_CLIENTS, integrations_lifecycle
 from .lifecycle import AppContext, app_context
 
 
 @asynccontextmanager
 async def scheduler_lifespan() -> AsyncGenerator[AppContext]:
     log = structlog.get_logger()
-    async with app_context() as ctx, integrations_lifecycle() as integrations:
+    # Scheduler 不装配 integration client —— SCHEDULER_CLIENTS 显式空,零配置可启动,不被无关 client 的 settings 缺失阻塞。
+    # 业务侧若需要某 client,在 container.py 的 SCHEDULER_CLIENTS 加 ctx;不要默认开启。
+    async with app_context() as ctx, integrations_lifecycle(*SCHEDULER_CLIENTS) as integrations:
         scheduler = AsyncIOScheduler()
         for spec in get_registered_cron_jobs():
             kwargs = {}

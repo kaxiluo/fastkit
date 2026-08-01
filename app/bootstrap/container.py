@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
 
 import httpx
@@ -22,6 +22,9 @@ from app.integrations.dummyjson.client import DummyJsonClient
 from app.integrations.dummyjson.settings import get_dummyjson_settings
 
 __all__ = [
+    "API_CLIENTS",
+    "WORKER_CLIENTS",
+    "SCHEDULER_CLIENTS",
     "build_broker",
     "build_engine",
     "build_session_factory",
@@ -44,12 +47,31 @@ async def dummyjson_client_ctx() -> AsyncGenerator[DummyJsonClient]:
         yield DummyJsonClient(http)
 
 
-@asynccontextmanager
-async def integrations_lifecycle() -> AsyncGenerator[Integrations]:
-    """进程级 integration 客户端聚合生命周期。
+ClientCtx = Callable[[], AsyncGenerator]
 
-    新增业务 client:多 enter 一层 <name>_client_ctx() + Integrations 加一个字段。
+API_CLIENTS: tuple[ClientCtx, ...] = (dummyjson_client_ctx,)
+WORKER_CLIENTS: tuple[ClientCtx, ...] = (dummyjson_client_ctx,)
+SCHEDULER_CLIENTS: tuple[ClientCtx, ...] = ()  # 显式空,固化零装配
+
+
+@asynccontextmanager
+async def integrations_lifecycle(
+    *ctx_providers: Callable[[], AsyncGenerator],
+) -> AsyncGenerator[Integrations]:
+    """进程级 integration 客户端聚合生命周期(Composition Root 显式装配)。
+
+    只 enter 列表里的 *_client_ctx()。三进程各自声明,互不强耦合:
+    未列入的 client 不 enter → 其 settings 不被读 → 该进程零配置可启动。
+    被列入的 client 的 settings 缺失仍会启动期 fail-fast(ValidationError),
+    保留 fail-fast 原则。
+
+    新增业务 client:写一个 <name>_client_ctx(),加进用到的进程对应的
+    *_CLIENTS 清单(API_CLIENTS / WORKER_CLIENTS / SCHEDULER_CLIENTS)。
+    lifespan 文件不改 —— body 永远是 integrations_lifecycle(*<NAME>_CLIENTS)。
     """
     async with AsyncExitStack() as stack:
-        dummyjson = await stack.enter_async_context(dummyjson_client_ctx())  # demo:dummyjson
-        yield Integrations(dummyjson=dummyjson)
+        integrations = Integrations()
+        for ctx_provider in ctx_providers:
+            client = await stack.enter_async_context(ctx_provider())
+            integrations.register(client)
+        yield integrations
