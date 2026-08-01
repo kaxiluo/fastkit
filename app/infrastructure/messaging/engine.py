@@ -46,6 +46,7 @@ class Messaging:
         self._relay_task: asyncio.Task | None = None
         self._shutdown = asyncio.Event()
         self._dispatcher: RetryDispatcher | None = None
+        self._integrations: object = None
 
     @property
     def registry(self) -> EventRegistry:
@@ -56,8 +57,9 @@ class Messaging:
         await self._broker.connect()
         log.info("messaging.publisher_ready")
 
-    async def start_consumers(self) -> None:
+    async def start_consumers(self, integrations: object = None) -> None:
         """Worker 进程:声明 DLQ + retry 拓扑 → 绑定 consumer → start broker → 起 relay。"""
+        self._integrations = integrations
         await self._broker.connect()
         await declare_dlq(self._broker, self._settings)
         await declare_retry(self._broker, self._settings)
@@ -113,7 +115,7 @@ class Messaging:
                 queue,
                 channel=Channel(prefetch_count=spec.concurrency),
             )(
-                _make_entry(spec.wrapped, self._session_factory)
+                _make_entry(spec.wrapped, self._session_factory, self._integrations)
             )
             log.info(
                 "messaging.consumer_bound",
@@ -124,11 +126,17 @@ class Messaging:
 def _make_entry(
     wrapped: Callable,
     session_factory: async_sessionmaker,
+    integrations: object,
 ):
     """FastStream subscriber 层入口:从 msg 拿 headers → parse_envelope → 调 wrapped。"""
 
     async def _entry(payload: dict, msg: RabbitMessage) -> None:
         envelope = parse_envelope(dict(msg.headers or {}))
-        await wrapped(payload, envelope=envelope, session_factory=session_factory)
+        await wrapped(
+            payload,
+            envelope=envelope,
+            session_factory=session_factory,
+            integrations=integrations,
+        )
 
     return _entry
