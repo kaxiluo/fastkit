@@ -109,7 +109,7 @@ app/
 ├── modules/<域>/       # 业务模块(扁平七文件 + public.py)
 └── shared/             # 跨层共享原语
 alembic/versions/       # 业务迁移
-docs/                   # coding-standards.md
+docs/                   # coding-standards.md / development-guide.md / framework-decisions.md
 scripts/                # rabbitmq-init.sh 等
 tests/                  # unit / integration / contract(e2e 按需新增)
 ```

@@ -20,8 +20,7 @@
 ## 3. 事务边界
 
 - service 接收 `session_factory`(**不是 session**);入口层不管事务
-- 单表:`async with sf() as s: ... await s.commit()`;多表:`async with sf() as s, s.begin(): ...`
-- **跨 service 合并用 `_in` 后缀**:`X(req)` 独立版 vs `X_in(session, ...)` 共享版
+- 写表(单/多统一):`async with sf() as s, s.begin(): ...`;只读:`async with sf() as s: ...`
 - Consumer 长任务只在写 DB 步骤开 session
 
 ## 4. 异常处理

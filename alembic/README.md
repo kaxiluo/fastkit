@@ -43,9 +43,9 @@ fastkit 的迁移分两层,通过 `alembic.ini` 的 `version_locations` 合成�
 - **upgrade/downgrade 对称**:upgrade 建什么,downgrade 按反序 DROP 什么。`DROP TABLE` / `DROP COLUMN` 自动级联 COMMENT,无需单独 DROP。
 - **状态枚举字段**:在 COMMENT 里列全可选值(如 `active=待发/重试中, dead=...`)。
 
-## 测试库重置
+## 异常处理:测试库 `alembic_version` 失配
 
-迁移文件改名或合并后,旧库的 `alembic_version` 表会失配。两种重置方式:
+迁移文件改名或合并后,旧库的 `alembic_version` 表可能与链路对不上(`No creation function found for '...'` 等)。两种重置方式:
 
 ```bash
 # 方式 1:drop 重建(干净)

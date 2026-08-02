@@ -47,10 +47,3 @@
 - 团队对"忘改 bootstrap 导致任务不跑"感到痛苦
 
 升级方向借鉴 Celery `autodiscover`：约定 `app/modules/*/cron.py`，启动时扫描 import。升级前要权衡上面 5 条理由是否还成立。
-
----
-
-## 参考
-
-- 操作步骤见 [development-guide.md](./development-guide.md)
-- 模块/入口的约束规则见 [coding-standards.md §2](./coding-standards.md)

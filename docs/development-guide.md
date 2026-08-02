@@ -22,7 +22,7 @@
 
 2. 按依赖顺序写实现：`models` → `repository` → `service` → `schemas`
 
-3. 挂线三处（缺一不加载）：
+3. 挂线三处（缺一不加载；机制与"为什么不自动扫描"见 [`framework-decisions.md`](./framework-decisions.md)）：
 
    **`app/entrypoints/http/router.py`** — 注册 HTTP 路由：
    ```python
@@ -210,8 +210,7 @@
    ```
 
 4. **三进程按需显式装配**：
-   - 把 `foo_client_ctx` 加进用到的进程对应的清单：API 用 → 加进 `API_CLIENTS`；Worker 用 → 加进 `WORKER_CLIENTS`；Scheduler 用 → 加进 `SCHEDULER_CLIENTS`（tuple，逗号分隔）。
-   - Scheduler 默认零装配（`SCHEDULER_CLIENTS = ()`）；只有当某 cron 真要用 `FooClient` 时才加。未装配的进程不会被 `FooSettings` 缺失阻塞。
+   - 把 `foo_client_ctx` 加进真正用到 `FooClient` 的进程清单：API 用 → `API_CLIENTS`；Worker 用 → `WORKER_CLIENTS`；Scheduler 用 → `SCHEDULER_CLIENTS`（tuple，逗号分隔）。**未列入的进程不会读 `FooSettings`，零配置可启动**（机制与 cron handler 一致，详见"加定时任务"）。
    - API DI：`_ContextProvider` 加 `@provide def foo_client(self) -> FooClient: return self._integrations.get(FooClient)`，路由 `FromDishka[FooClient]`。
    - Worker/Scheduler handler：声明 `*, integrations: Integrations`，内部 `client = integrations.get(FooClient)`。
    - 多实例：拆成不同的独立类（如 `FooAClient` / `FooBClient`），各自 settings / client_ctx；不要用 `(type, name)` 二元 key。
@@ -264,12 +263,12 @@ class <Name>Db(BusinessDb):
 ```python
 from app.infrastructure.database.business.<name> import <name>_db_ctx
 
-API_DATABASES       = (..., <name>_db_ctx)   # 仅在真正用到的进程列入
+API_DATABASES       = (..., <name>_db_ctx)
 WORKER_DATABASES    = (..., <name>_db_ctx)
 SCHEDULER_DATABASES = ()
 ```
 
-只在真正使用该库的进程列入。**列入即要求该进程启动时有对应 DSN（fail-fast）**，未列入则 settings 不被读、进程零配置可启。
+只在真正使用该库的进程列入。**列入即要求该进程启动时有对应 DSN（fail-fast）**，未列入则 settings 不被读、进程零配置可启（机制与 integration client 一致）。
 
 ### 3. 在业务代码中注入
 
@@ -284,31 +283,20 @@ async def handler(db: FromDishka[<Name>Db]):
         ...
 ```
 
-**Worker consumer（Databases bundle，按需 `.get()`）**：
+**Worker consumer / Scheduler cron（Databases bundle，按需 `.get()`）**：
 
 ```python
 from app.infrastructure.database.business.<name> import <Name>Db
 from app.infrastructure.database.business.handle import Databases
 
-@task_consumer("some.event", inbox=True)
+@task_consumer("some.event", inbox=True)  # 或 @cron_job(...)
 async def on_event(msg, *, databases: Databases) -> None:
     db = databases.get(<Name>Db)
     async with db.session_factory() as s, s.begin():
         ...
 ```
 
-**Scheduler cron（Databases bundle，同上）**：
-
-```python
-from app.infrastructure.database.business.<name> import <Name>Db
-from app.infrastructure.database.business.handle import Databases
-
-@cron_job(CronTrigger(minute="*/5"), job_id="<域>.my_job")
-async def my_job(*, databases: Databases) -> None:
-    db = databases.get(<Name>Db)
-    async with db.session_factory() as s, s.begin():
-        ...
-```
+> Scheduler cron 完整示例（含装饰器签名）见上文"加定时任务 → 需要业务库时"。
 
 ### 4. 添加环境变量
 
@@ -322,6 +310,6 @@ DATABASE_<NAME>_POOL_SIZE=10   # 可选，继承默认值
 ### 注意事项
 
 - 业务库迁移由业务方自管（框架不提供 alembic 多库配置）
-- 跨库事务不支持，见 coding-standards.md "多库事务边界"
-- `/ready` 不探活业务库；K8s 滚动更新场景下如有强依赖，需业务方自建就绪探针
-- 异构 MySQL：URL 方言改为 `mysql+asyncmy://`，并安装 mysql extra：`pip install "fastkit[mysql]"`（或 `uv sync --extra mysql`）。asyncmy 作为可选依赖，PG-only 用户默认不安装。如需改用 `aiomysql`，替换依赖即可，`build_engine` 无需改动。
+- 跨库事务不支持（[`coding-standards.md`](./coding-standards.md) §8）；outbox 也只保证主库事务内原子
+- `/ready` 不探活业务库；K8s 滚动更新如有强依赖，业务方自建就绪探针
+- MySQL：URL 方言用 `mysql+asyncmy://`，需 `uv sync --extra mysql`（asyncmy 为可选依赖，PG-only 不安装）
