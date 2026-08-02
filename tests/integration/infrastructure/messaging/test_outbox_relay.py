@@ -51,12 +51,13 @@ async def test_drain_once_publishes_and_marks_row(
 
     async with session_factory() as s:
         row = (
-            (await s.execute(text("SELECT published_at, attempts FROM fastkit_outbox")))
+            (await s.execute(text("SELECT published_at, attempts, status FROM fastkit_outbox")))
             .mappings()
             .one()
         )
     assert row["published_at"] is not None
     assert row["attempts"] == 0
+    assert row["status"] == "published"
 
 
 async def test_drain_once_increments_attempts_on_broker_failure(

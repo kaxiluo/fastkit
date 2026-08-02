@@ -1,11 +1,10 @@
-"""Outbox relay:LISTEN/NOTIFY + 积压连续消化 + FOR UPDATE SKIP LOCKED + publisher confirm + 退避 + DLQ 转投。"""
+"""Outbox relay:LISTEN/NOTIFY + 积压连续消化 + FOR UPDATE SKIP LOCKED + publisher confirm + 退避。"""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 from contextlib import suppress
-from datetime import UTC, datetime
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -30,7 +29,7 @@ async def _drain_once(
 
     失败分支:
       - new_attempts < max_attempts:attempts+1 + backoff
-      - new_attempts >= max_attempts:标 status='dead' + published_at=NOW() + 转投 DLX
+      - new_attempts >= max_attempts:标 status='dead' + published_at=NOW()
     """
     fetched = 0
     async with session_factory() as session, session.begin():
@@ -41,8 +40,7 @@ async def _drain_once(
                         """
                         SELECT id, routing_key, payload, headers, attempts
                         FROM fastkit_outbox
-                        WHERE published_at IS NULL
-                          AND status = 'active'
+                        WHERE status = 'pending'
                           AND next_attempt_at <= NOW()
                           AND attempts < :max_attempts
                         ORDER BY next_attempt_at
@@ -69,7 +67,7 @@ async def _drain_once(
                     headers=row["headers"],
                 )
                 await session.execute(
-                    text("UPDATE fastkit_outbox SET published_at = NOW() WHERE id = :id"),
+                    text("UPDATE fastkit_outbox SET status = 'published', published_at = NOW() WHERE id = :id"),
                     {"id": row["id"]},
                 )
             except Exception as e:
@@ -97,41 +95,15 @@ async def _drain_once(
                             "reason": reason,
                         },
                     )
-                    # 转投 DLX(best-effort;失败仅 log,不重试)
-                    try:
-                        failure = {
-                            "type": f"{type(e).__module__}.{type(e).__qualname__}",
-                            "message": err_msg,
-                            "at": datetime.now(UTC).isoformat(),
-                        }
-                        dlx_headers = {**row["headers"], "failure": failure}
-                        await broker.publish(
-                            row["payload"],
-                            exchange=settings.dlq_exchange,
-                            routing_key="",
-                            headers=dlx_headers,
-                        )
-                        log.error(
-                            "outbox.dead_lettered",
-                            extra={
-                                "outbox_id": row["id"],
-                                "routing_key": row["routing_key"],
-                                "attempts": new_attempts,
-                                "error": repr(e),
-                            },
-                        )
-                    except Exception as dlx_err:
-                        # DLX 转投失败:死信消息本身丢失,仅 log,不改状态(状态已 dead)。
-                        # outbox 行保留 published_at,进入 30 天归档窗口(run_outbox_retention 的
-                        # OUTBOX_RETENTION_DAYS),期间可 SQL 人工回捞,超期由 retention job 清理。
-                        log.exception(
-                            "outbox.dead_letter_failed",
-                            extra={
-                                "outbox_id": row["id"],
-                                "dlq_error": repr(dlx_err),
-                                "original_error": repr(e),
-                            },
-                        )
+                    log.error(
+                        "outbox.dead",
+                        extra={
+                            "outbox_id": row["id"],
+                            "routing_key": row["routing_key"],
+                            "attempts": new_attempts,
+                            "error": repr(e),
+                        },
+                    )
                 else:
                     # 未达上限:原有 backoff 逻辑(用已 +1 的 new_attempts,首次失败退避从 2s 起)
                     delay = _backoff(new_attempts, settings.outbox_backoff_max_seconds)
