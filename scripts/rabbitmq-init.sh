@@ -11,5 +11,6 @@ rabbitmqctl add_vhost fastkit \
 echo
 echo "Done. broker_url = amqp://guest:***@<host>:5672/fastkit"
 
-# 删除 fastkit_test vhost 所有队列(测试用):
+# 删除 fastkit_test vhost 所有队列(手动兜底;集成测试 session 开跑前已自动清理,
+# 见 tests/integration/conftest.py::clean_test_vhost):
 # rabbitmqctl list_queues -p fastkit_test name | awk '/^name$/{found=1; next} found' | xargs -I{} rabbitmqctl delete_queue -p fastkit_test {}

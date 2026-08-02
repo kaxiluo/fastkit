@@ -4,15 +4,17 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from pathlib import Path
+from urllib.parse import quote, urlparse
 
+import httpx
 import pytest
 import pytest_asyncio
-from alembic import command
 from alembic.config import Config
 from faststream.rabbit import RabbitBroker
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from alembic import command
 from app.infrastructure.database.engine import build_engine
 from app.infrastructure.database.session import build_session_factory
 from app.infrastructure.database.settings import DatabaseSettings
@@ -29,6 +31,30 @@ def run_migrations(test_database_settings: DatabaseSettings) -> None:
     alembic_cfg = Config(str(_PROJECT_ROOT / "alembic.ini"))
     alembic_cfg.set_main_option("sqlalchemy.url", test_database_settings.url.get_secret_value())
     command.upgrade(alembic_cfg, "head")
+
+
+def _purge_test_vhost(broker_url: str) -> None:
+    """删光 test vhost 里所有队列(连同其中残留消息)。
+
+    durable 队列跨 pytest 会话持久:上一次被中断的 run 可能把带 attempts 的消息
+    经 retry TTL dead-letter 回业务队列静躺,污染下一次 run。整库清空是零维护的兜底
+    (不逐个列队列名),仅在 test vhost 已与 dev 隔离时安全。各测试 start_consumers
+    会按需重新声明队列。管理端口用 RabbitMQ 默认 15672,host 从 broker_url 取。
+    """
+    u = urlparse(broker_url)
+    vhost = quote(u.path.lstrip("/") or "/", safe="")
+    base = f"http://{u.hostname}:15672/api"
+    with httpx.Client(auth=(u.username or "", u.password or ""), timeout=5.0) as c:
+        resp = c.get(f"{base}/queues/{vhost}")
+        resp.raise_for_status()
+        for q in resp.json():
+            c.delete(f"{base}/queues/{vhost}/{quote(q['name'], safe='')}").raise_for_status()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def clean_test_vhost(test_messaging_settings: MessagingSettings) -> None:
+    """session 开跑前清除跨会话/中断残留的化石消息与坏拓扑。见 _purge_test_vhost。"""
+    _purge_test_vhost(test_messaging_settings.broker_url.get_secret_value())
 
 
 @pytest_asyncio.fixture
