@@ -201,3 +201,101 @@
    - API DI：`_ContextProvider` 加 `@provide def foo_client(self) -> FooClient: return self._integrations.get(FooClient)`，路由 `FromDishka[FooClient]`。
    - Worker/Scheduler handler：声明 `*, integrations: Integrations`，内部 `client = integrations.get(FooClient)`。
    - 多实例：拆成不同的独立类（如 `FooAClient` / `FooBClient`），各自 settings / client_ctx；不要用 `(type, name)` 二元 key。
+
+---
+
+## 接入新业务库
+
+接入一个新业务库 = 一个小文件（3 个声明 + 1 行工厂）+ 往进程清单加一项。**主库（`DATABASE_URL`）不动**，业务方按需接入 N 个额外业务库（同构 PG 或异构 MySQL）。
+
+> 参考实现：`app/infrastructure/database/business/secondary.py`（demo:secondary-db）
+
+### 1. 创建业务库声明文件
+
+`app/infrastructure/database/business/<name>.py`：
+
+```python
+from pydantic_settings import SettingsConfigDict
+from sqlalchemy.orm import DeclarativeBase
+
+from app.infrastructure.database.business.handle import BusinessDb, business_db_ctx
+from app.infrastructure.database.settings import DatabaseSettings
+
+
+class <Name>DatabaseSettings(DatabaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="DATABASE_<NAME>_",   # 统一挂 DATABASE_ 命名空间
+        env_file=".env",                 # 生产读 .env；测试侧通过 conftest 的 _Test* 子类覆盖为 .env.test
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
+
+class <Name>Base(DeclarativeBase):
+    """<name> 库 ORM 模型的独立继承点，metadata 与主库隔离。"""
+
+
+class <Name>Db(BusinessDb):
+    """<name> 库注入类型。仅为 DI 类型区分，无新增字段。"""
+
+
+<name>_db_ctx = business_db_ctx(<Name>Db, <Name>DatabaseSettings)
+```
+
+### 2. 注册到进程清单
+
+`app/bootstrap/container.py`：
+
+```python
+from app.infrastructure.database.business.<name> import <name>_db_ctx
+
+API_DATABASES       = (..., <name>_db_ctx)   # 仅在真正用到的进程列入
+WORKER_DATABASES    = (..., <name>_db_ctx)
+SCHEDULER_DATABASES = ()
+```
+
+只在真正使用该库的进程列入。**列入即要求该进程启动时有对应 DSN（fail-fast）**，未列入则 settings 不被读、进程零配置可启。
+
+### 3. 在业务代码中注入
+
+**API 进程（dishka 直注，按 `<Name>Db` 类型）**：
+
+```python
+from app.infrastructure.database.business.<name> import <Name>Db
+from dishka.integrations.fastapi import FromDishka
+
+async def handler(db: FromDishka[<Name>Db]):
+    async with db.session_factory() as s, s.begin():
+        ...
+```
+
+**Worker consumer（Databases bundle，按需 `.get()`）**：
+
+```python
+from app.infrastructure.database.business.<name> import <Name>Db
+from app.infrastructure.database.business.handle import Databases
+
+@task_consumer("some.event", inbox=True)
+async def on_event(msg, *, databases: Databases) -> None:
+    db = databases.get(<Name>Db)
+    async with db.session_factory() as s, s.begin():
+        ...
+```
+
+### 4. 添加环境变量
+
+`.env`（生产）/ `.env.test`（测试）：
+
+```
+DATABASE_<NAME>_URL=postgresql+asyncpg://...
+DATABASE_<NAME>_POOL_SIZE=10   # 可选，继承默认值
+```
+
+### 注意事项
+
+- 业务库迁移由业务方自管（框架不提供 alembic 多库配置）
+- `cron job` 暂不支持直接注入 `BusinessDb`，有需求时另开 spec
+- 跨库事务不支持，见 coding-standards.md "多库事务边界"
+- `/ready` 不探活业务库；K8s 滚动更新场景下如有强依赖，需业务方自建就绪探针
+- 异构 MySQL：设计支持（URL 方言改为 `mysql+asyncmy://`），v1 不内置驱动，真正接入时选型 `asyncmy` vs `aiomysql` 后再加依赖
