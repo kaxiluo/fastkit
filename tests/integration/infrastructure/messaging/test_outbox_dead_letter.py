@@ -51,13 +51,14 @@ async def test_outbox_row_transitions_to_dead_after_max_attempts(
     async with session_factory() as session:
         result = await session.execute(
             text(
-                "SELECT status, dead_reason, published_at, attempts FROM fastkit_outbox "
+                "SELECT status, dead_reason, published_at, dead_at, attempts FROM fastkit_outbox "
                 "WHERE routing_key='test.dead' ORDER BY id DESC LIMIT 1"
             )
         )
         row = result.first()
 
     assert row.status == "dead"
-    assert row.published_at is not None
+    assert row.published_at is None
+    assert row.dead_at is not None
     assert row.attempts >= 2
     assert row.dead_reason and "ConnectionError" in row.dead_reason

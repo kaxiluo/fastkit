@@ -29,7 +29,7 @@ async def _drain_once(
 
     失败分支:
       - new_attempts < max_attempts:attempts+1 + backoff
-      - new_attempts >= max_attempts:标 status='dead' + published_at=NOW()
+      - new_attempts >= max_attempts:标 status='dead' + dead_at=NOW()
     """
     fetched = 0
     async with session_factory() as session, session.begin():
@@ -73,7 +73,7 @@ async def _drain_once(
             except Exception as e:
                 new_attempts = row["attempts"] + 1
                 if new_attempts >= settings.outbox_max_attempts:
-                    # 达上限:标 dead + 转 DLX
+                    # 达上限:标 dead
                     err_msg = str(e)[:500]
                     reason = f"max_attempts_exceeded: {type(e).__name__}"
                     await session.execute(
@@ -84,7 +84,7 @@ async def _drain_once(
                                 attempts = :att,
                                 last_error = :err,
                                 dead_reason = :reason,
-                                published_at = NOW()
+                                dead_at = NOW()
                             WHERE id = :id
                             """
                         ),

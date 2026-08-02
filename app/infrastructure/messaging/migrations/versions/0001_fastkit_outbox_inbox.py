@@ -23,6 +23,7 @@ def upgrade() -> None:
             headers JSONB NOT NULL DEFAULT '{}',
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             published_at TIMESTAMPTZ,
+            dead_at TIMESTAMPTZ,
             attempts INT NOT NULL DEFAULT 0 CHECK (attempts >= 0),
             last_error TEXT,
             next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -59,6 +60,10 @@ def upgrade() -> None:
         "'成功投递到 broker 的时间; NULL 表示尚未发布'"
     )
     op.execute(
+        "COMMENT ON COLUMN fastkit_outbox.dead_at IS "
+        "'死信放弃时间; NULL 表示尚未进入死信(仅 status=dead 行有值)'"
+    )
+    op.execute(
         "COMMENT ON COLUMN fastkit_outbox.attempts IS '已重试次数 (从 0 开始计数)'"
     )
     op.execute(
@@ -83,7 +88,11 @@ def upgrade() -> None:
     )
     op.execute(
         "CREATE INDEX idx_fastkit_outbox_published ON fastkit_outbox (published_at) "
-        "WHERE published_at IS NOT NULL"
+        "WHERE status = 'published'"
+    )
+    op.execute(
+        "CREATE INDEX idx_fastkit_outbox_dead ON fastkit_outbox (dead_at) "
+        "WHERE status = 'dead'"
     )
 
     op.execute(
@@ -137,6 +146,7 @@ def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS fastkit_inbox")
     op.execute("DROP TRIGGER IF EXISTS fastkit_outbox_notify ON fastkit_outbox")
     op.execute("DROP FUNCTION IF EXISTS fastkit_notify_outbox()")
+    op.execute("DROP INDEX IF EXISTS idx_fastkit_outbox_dead")
     op.execute("DROP INDEX IF EXISTS idx_fastkit_outbox_published")
     op.execute("DROP INDEX IF EXISTS idx_fastkit_outbox_pending")
     op.execute("DROP TABLE IF EXISTS fastkit_outbox")
