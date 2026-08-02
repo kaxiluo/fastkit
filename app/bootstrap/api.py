@@ -13,13 +13,34 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.config.settings import AppSettings
+from app.infrastructure.database.business.handle import BusinessDb, Databases
 from app.infrastructure.messaging import EventRegistry, Messaging
 from app.integrations.bundle import Integrations
 from app.integrations.dummyjson.client import DummyJsonClient
 from app.modules.example import events as _example_events  # noqa: F401  触发 @event 注册
 
-from .container import API_CLIENTS, integrations_lifecycle
+from .container import API_CLIENTS, API_DATABASES, databases_lifecycle, integrations_lifecycle
 from .lifecycle import AppContext, app_context
+
+
+def build_databases_provider(databases: Databases) -> Provider:
+    """为每个 handle 按其具体类型注册一个 APP-scope provide。
+
+    dishka 1.10.1 要求 factory 函数有 return type annotation;lambda 无 hint
+    会触发 MissingHintsError,故用动态设 __annotations__['return'] 的工厂。
+    """
+    p = Provider(scope=Scope.APP)
+    for h in databases.all():
+
+        def _make_factory(handle: BusinessDb):
+            def _factory():
+                return handle
+
+            _factory.__annotations__ = {"return": type(handle)}
+            return _factory
+
+        p.provide(_make_factory(h))
+    return p
 
 
 class _ContextProvider(Provider):
@@ -80,10 +101,17 @@ def setup_api(app: FastAPI) -> None:
 @asynccontextmanager
 async def api_lifespan(app: FastAPI) -> AsyncGenerator[None]:
     log = structlog.get_logger()
-    async with app_context() as ctx, integrations_lifecycle(*API_CLIENTS) as integrations:
+    async with (
+        app_context() as ctx,
+        integrations_lifecycle(*API_CLIENTS) as integrations,
+        databases_lifecycle(*API_DATABASES) as databases,
+    ):
         await ctx.messaging.start_publishing_only()
         log.info("api.started", app_name=ctx.settings.app_name)
-        container = make_async_container(_ContextProvider(ctx, integrations))
+        container = make_async_container(
+            _ContextProvider(ctx, integrations),
+            build_databases_provider(databases),
+        )
         # 注入真实 container,ContainerMiddleware 在请求时按此键读取
         app.state.dishka_container = container
         try:

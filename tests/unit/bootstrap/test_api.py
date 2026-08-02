@@ -83,11 +83,18 @@ async def test_api_lifespan_injects_container_and_cleans_up_on_exit() -> None:
         captured_providers.extend(ctx_providers)
         yield integrations
 
+    @asynccontextmanager
+    async def fake_databases_lifecycle(*_ctxs) -> AsyncGenerator:
+        from app.infrastructure.database.business.handle import Databases
+
+        yield Databases()
+
     app = FastAPI()
 
     with (
         patch("app.bootstrap.api.app_context", fake_app_context),
         patch("app.bootstrap.api.integrations_lifecycle", fake_integrations_lifecycle),
+        patch("app.bootstrap.api.databases_lifecycle", fake_databases_lifecycle),
         patch("app.bootstrap.api.make_async_container", return_value=fake_container),
     ):
         async with api_lifespan(app):
