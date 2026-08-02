@@ -16,11 +16,13 @@ class _CronJobSpec:
     max_instances: int
     accepts_session_factory: bool = field(init=False)
     accepts_integrations: bool = field(init=False)
+    accepts_databases: bool = field(init=False)
 
     def __post_init__(self) -> None:
         sig = inspect.signature(self.func)
         self.accepts_session_factory = "session_factory" in sig.parameters
         self.accepts_integrations = "integrations" in sig.parameters
+        self.accepts_databases = "databases" in sig.parameters
 
 
 _CRON_JOBS: list[_CronJobSpec] = []

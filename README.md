@@ -1,6 +1,6 @@
 # fastkit
 
-纯后端异步服务骨架(FastAPI + FastStream + RabbitMQ + PostgreSQL + Redis + dishka DI)。
+纯后端异步服务骨架(FastAPI + FastStream + RabbitMQ + PostgreSQL + Redis + dishka DI)。主库 PostgreSQL,业务库按需接入 N 个额外库(同构 PG 或异构 MySQL)。
 
 仓库内有三个独立进程,各自有 lifespan、互不依赖:
 
@@ -104,7 +104,7 @@ app/
 │   └── scheduler.py    # APScheduler 入口
 ├── bootstrap/          # 各进程 lifespan + dishka container
 ├── config/             # Settings(pydantic-settings)
-├── infrastructure/     # database / redis / messaging(outbox/inbox/dlq/retry) / observability / ratelimit / concurrency
+├── infrastructure/     # database(主库 + business/ 多业务库) / redis / messaging(outbox/inbox/dlq/retry) / observability / ratelimit / concurrency
 ├── integrations/       # 对外 HTTP 客户端收敛点(如 dummyjson)
 ├── modules/<域>/       # 业务模块(扁平七文件 + public.py)
 └── shared/             # 跨层共享原语

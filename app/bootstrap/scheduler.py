@@ -12,16 +12,25 @@ from app.infrastructure.messaging.cron import inbox_retention as _inbox_retentio
 from app.infrastructure.messaging.cron import outbox_retention as _outbox_retention  # noqa: F401
 from app.infrastructure.scheduler.registry import get_registered_cron_jobs
 
-from .container import SCHEDULER_CLIENTS, integrations_lifecycle
+from .container import (
+    SCHEDULER_CLIENTS,
+    SCHEDULER_DATABASES,
+    databases_lifecycle,
+    integrations_lifecycle,
+)
 from .lifecycle import AppContext, app_context
 
 
 @asynccontextmanager
 async def scheduler_lifespan() -> AsyncGenerator[AppContext]:
     log = structlog.get_logger()
-    # Scheduler 不装配 integration client —— SCHEDULER_CLIENTS 显式空,零配置可启动,不被无关 client 的 settings 缺失阻塞。
-    # 业务侧若需要某 client,在 container.py 的 SCHEDULER_CLIENTS 加 ctx;不要默认开启。
-    async with app_context() as ctx, integrations_lifecycle(*SCHEDULER_CLIENTS) as integrations:
+    # Scheduler 默认零装配 integration client / 业务库 —— SCHEDULER_* 显式空,零配置可启动,
+    # 不被无关 client/settings 缺失阻塞。业务侧需要时在 container.py 对应清单加 ctx,不要默认开启。
+    async with (
+        app_context() as ctx,
+        integrations_lifecycle(*SCHEDULER_CLIENTS) as integrations,
+        databases_lifecycle(*SCHEDULER_DATABASES) as databases,
+    ):
         scheduler = AsyncIOScheduler()
         for spec in get_registered_cron_jobs():
             kwargs = {}
@@ -29,6 +38,8 @@ async def scheduler_lifespan() -> AsyncGenerator[AppContext]:
                 kwargs["session_factory"] = ctx.session_factory
             if spec.accepts_integrations:
                 kwargs["integrations"] = integrations
+            if spec.accepts_databases:
+                kwargs["databases"] = databases
             scheduler.add_job(
                 spec.func,
                 spec.trigger,

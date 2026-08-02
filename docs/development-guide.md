@@ -6,7 +6,7 @@
 
 参考 `app/modules/example/` 的完整实现。
 
-1. 建 `app/modules/<域>/` 目录，创建以下文件（router / consumers / events / cron 按需，不需要的留空）：
+1. 建 `app/modules/<域>/` 目录，创建以下基础文件（必建）；`cron.py` 按需，不需要就不建：
 
    ```
    __init__.py
@@ -46,7 +46,8 @@
 5. 验证：
 
    ```bash
-   uv run pytest -m integration
+   uv run pytest tests/unit/<域>/        # 默认跑 unit
+   uv run pytest -m integration           # 写了 integration 测试再补这条
    ```
 
 ---
@@ -88,7 +89,7 @@
        return get_foo_settings()
    ```
 
-3. service 里通过 `FromDishka[FooSettings]` 注入使用
+3. router 里用 `FromDishka[FooSettings]` 取，通过 service 构造参数传入（service 本身不是 dishka 入口，不直接 `FromDishka`）
 
 4. 在 `.env.example` 补充字段（加注释说明必填/选填）：
 
@@ -136,7 +137,20 @@
        ...
    ```
 
-   > Scheduler 默认零装配（`SCHEDULER_CLIENTS = ()`），`.get(<Client>)` 会抛 `ClientNotRegisteredError`；把对应 `*_client_ctx` 加进 `SCHEDULER_CLIENTS`（见"加外部 HTTP 集成"第 4 步）才能使用。
+   需要业务库时（同 `integrations` 一样按参数名注入），加 `*, databases: Databases` 参数，内部 `.get(<Name>Db)` 取：
+
+   ```python
+   from app.infrastructure.database.business.handle import Databases
+   from app.infrastructure.database.business.<name> import <Name>Db
+
+   @cron_job(CronTrigger(minute="*/5"), job_id="<域>.my_job")
+   async def my_job(*, databases: Databases) -> None:
+       db = databases.get(<Name>Db)
+       async with db.session_factory() as s, s.begin():
+           ...
+   ```
+
+   > Scheduler 默认零装配（`SCHEDULER_CLIENTS = ()`、`SCHEDULER_DATABASES = ()`），`.get(<Client>)` / `.get(<Name>Db)` 会抛 `ClientNotRegisteredError` / `DatabaseNotRegisteredError`；把对应 `*_client_ctx` / `*_db_ctx` 加进 `SCHEDULER_CLIENTS` / `SCHEDULER_DATABASES`（见"加外部 HTTP 集成"第 4 步、"接入新业务库"第 2 步）才能使用。
 
 2. 在 `app/bootstrap/scheduler.py` import 该模块：
 
@@ -283,6 +297,19 @@ async def on_event(msg, *, databases: Databases) -> None:
         ...
 ```
 
+**Scheduler cron（Databases bundle，同上）**：
+
+```python
+from app.infrastructure.database.business.<name> import <Name>Db
+from app.infrastructure.database.business.handle import Databases
+
+@cron_job(CronTrigger(minute="*/5"), job_id="<域>.my_job")
+async def my_job(*, databases: Databases) -> None:
+    db = databases.get(<Name>Db)
+    async with db.session_factory() as s, s.begin():
+        ...
+```
+
 ### 4. 添加环境变量
 
 `.env`（生产）/ `.env.test`（测试）：
@@ -295,7 +322,6 @@ DATABASE_<NAME>_POOL_SIZE=10   # 可选，继承默认值
 ### 注意事项
 
 - 业务库迁移由业务方自管（框架不提供 alembic 多库配置）
-- `cron job` 暂不支持直接注入 `BusinessDb`，有需求时另开 spec
 - 跨库事务不支持，见 coding-standards.md "多库事务边界"
 - `/ready` 不探活业务库；K8s 滚动更新场景下如有强依赖，需业务方自建就绪探针
 - 异构 MySQL：URL 方言改为 `mysql+asyncmy://`，并安装 mysql extra：`pip install "fastkit[mysql]"`（或 `uv sync --extra mysql`）。asyncmy 作为可选依赖，PG-only 用户默认不安装。如需改用 `aiomysql`，替换依赖即可，`build_engine` 无需改动。

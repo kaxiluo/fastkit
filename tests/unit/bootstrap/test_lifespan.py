@@ -66,17 +66,25 @@ async def test_worker_lifespan_starts_consumers_then_stops_messaging() -> None:
 
 
 @pytest.mark.asyncio
-async def test_scheduler_lifespan_registers_jobs_with_and_without_session_factory() -> None:
+async def test_scheduler_lifespan_injects_session_factory_integrations_and_databases() -> None:
     from app.bootstrap.scheduler import scheduler_lifespan
 
     session_factory = MagicMock(name="session_factory")
     integrations = MagicMock(name="integrations")
+    databases = MagicMock(name="databases")
     captured_providers: list = []
+    captured_db_ctxs: list = []
 
     @asynccontextmanager
     async def capturing_integrations_lifecycle(*ctx_providers) -> AsyncGenerator:
         captured_providers.extend(ctx_providers)
         yield integrations
+
+    @asynccontextmanager
+    async def capturing_databases_lifecycle(*db_ctxs) -> AsyncGenerator:
+        captured_db_ctxs.extend(db_ctxs)
+        yield databases
+
     ctx = SimpleNamespace(
         settings=SimpleNamespace(app_name="test-app"),
         session_factory=session_factory,
@@ -90,6 +98,7 @@ async def test_scheduler_lifespan_registers_jobs_with_and_without_session_factor
         max_instances=1,
         accepts_session_factory=True,
         accepts_integrations=False,
+        accepts_databases=False,
     )
     spec_without_sf = SimpleNamespace(
         func=lambda: None,
@@ -99,6 +108,7 @@ async def test_scheduler_lifespan_registers_jobs_with_and_without_session_factor
         max_instances=2,
         accepts_session_factory=False,
         accepts_integrations=False,
+        accepts_databases=False,
     )
     spec_with_integ = SimpleNamespace(
         func=lambda **_kw: None,
@@ -108,14 +118,26 @@ async def test_scheduler_lifespan_registers_jobs_with_and_without_session_factor
         max_instances=1,
         accepts_session_factory=False,
         accepts_integrations=True,
+        accepts_databases=False,
+    )
+    spec_with_dbs = SimpleNamespace(
+        func=lambda **_kw: None,
+        trigger=MagicMock(name="trigger4"),
+        job_id="with-dbs",
+        misfire_grace_time=40,
+        max_instances=1,
+        accepts_session_factory=False,
+        accepts_integrations=False,
+        accepts_databases=True,
     )
 
     with (
         patch("app.bootstrap.scheduler.app_context", _fake_app_context(ctx)),
         patch("app.bootstrap.scheduler.integrations_lifecycle", capturing_integrations_lifecycle),
+        patch("app.bootstrap.scheduler.databases_lifecycle", capturing_databases_lifecycle),
         patch(
             "app.bootstrap.scheduler.get_registered_cron_jobs",
-            return_value=[spec_with_sf, spec_without_sf, spec_with_integ],
+            return_value=[spec_with_sf, spec_without_sf, spec_with_integ, spec_with_dbs],
         ),
         patch("app.bootstrap.scheduler.AsyncIOScheduler") as mock_sched_cls,
     ):
@@ -126,7 +148,7 @@ async def test_scheduler_lifespan_registers_jobs_with_and_without_session_factor
             assert yielded is ctx
 
     add_job_calls = mock_sched.add_job.call_args_list
-    assert len(add_job_calls) == 3
+    assert len(add_job_calls) == 4
 
     first = add_job_calls[0]
     assert first.args[0] is spec_with_sf.func
@@ -158,9 +180,20 @@ async def test_scheduler_lifespan_registers_jobs_with_and_without_session_factor
         "max_instances": 1,
     }
 
+    fourth = add_job_calls[3]
+    assert fourth.args[0] is spec_with_dbs.func
+    assert fourth.args[1] is spec_with_dbs.trigger
+    assert fourth.kwargs == {
+        "kwargs": {"databases": databases},
+        "id": "with-dbs",
+        "misfire_grace_time": 40,
+        "max_instances": 1,
+    }
+
     mock_sched.start.assert_called_once_with()
     mock_sched.shutdown.assert_called_once_with(wait=False)
-    assert captured_providers == [], "Scheduler 必须零装配 integration client"
+    assert captured_providers == [], "Scheduler 默认零装配 integration client"
+    assert captured_db_ctxs == [], "Scheduler 默认零装配业务库"
 
 
 @pytest.mark.asyncio
@@ -177,6 +210,7 @@ async def test_scheduler_lifespan_with_no_cron_jobs_skips_loop_body() -> None:
     with (
         patch("app.bootstrap.scheduler.app_context", _fake_app_context(ctx)),
         patch("app.bootstrap.scheduler.integrations_lifecycle", _fake_app_context(MagicMock())),
+        patch("app.bootstrap.scheduler.databases_lifecycle", _fake_app_context(MagicMock())),
         patch("app.bootstrap.scheduler.get_registered_cron_jobs", return_value=[]),
         patch("app.bootstrap.scheduler.AsyncIOScheduler") as mock_sched_cls,
     ):

@@ -1,6 +1,5 @@
 from app.infrastructure.database.business.handle import (
     BusinessDb,
-    BusinessDbT,
     DatabaseNotRegisteredError,
     Databases,
     business_db_ctx,
@@ -8,7 +7,6 @@ from app.infrastructure.database.business.handle import (
 
 __all__ = [
     "BusinessDb",
-    "BusinessDbT",
     "DatabaseNotRegisteredError",
     "Databases",
     "business_db_ctx",

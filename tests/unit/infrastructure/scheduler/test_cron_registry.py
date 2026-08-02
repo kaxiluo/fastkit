@@ -115,3 +115,19 @@ def test_spec_no_integrations_param():
         pass
 
     assert get_registered_cron_jobs()[0].accepts_integrations is False
+
+
+def test_spec_detects_databases_param():
+    @cron_job(CronTrigger(hour=12), job_id="with_dbs")
+    async def with_dbs(databases) -> None:
+        pass
+
+    assert get_registered_cron_jobs()[0].accepts_databases is True
+
+
+def test_spec_no_databases_param():
+    @cron_job(CronTrigger(hour=13), job_id="no_dbs")
+    async def no_dbs() -> None:
+        pass
+
+    assert get_registered_cron_jobs()[0].accepts_databases is False

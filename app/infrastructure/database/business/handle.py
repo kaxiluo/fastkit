@@ -39,7 +39,7 @@ class DatabaseNotRegisteredError(RuntimeError):
 
 
 class Databases:
-    """进程级业务库句柄注册表,供 task_consumer 注入路径使用。
+    """进程级业务库句柄注册表,供 worker task_consumer / API dishka provider 共用。
 
     与 Integrations 对称但独立——避免 DB handle 与 HTTP client 混用。
     未注册时 .get() 抛 DatabaseNotRegisteredError(fail-fast,不静默降级)。
