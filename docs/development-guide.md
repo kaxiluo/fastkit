@@ -298,4 +298,4 @@ DATABASE_<NAME>_POOL_SIZE=10   # 可选，继承默认值
 - `cron job` 暂不支持直接注入 `BusinessDb`，有需求时另开 spec
 - 跨库事务不支持，见 coding-standards.md "多库事务边界"
 - `/ready` 不探活业务库；K8s 滚动更新场景下如有强依赖，需业务方自建就绪探针
-- 异构 MySQL：设计支持（URL 方言改为 `mysql+asyncmy://`），v1 不内置驱动，真正接入时选型 `asyncmy` vs `aiomysql` 后再加依赖
+- 异构 MySQL：URL 方言改为 `mysql+asyncmy://`，并安装 mysql extra：`pip install "fastkit[mysql]"`（或 `uv sync --extra mysql`）。asyncmy 作为可选依赖，PG-only 用户默认不安装。如需改用 `aiomysql`，替换依赖即可，`build_engine` 无需改动。

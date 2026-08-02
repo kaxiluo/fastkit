@@ -35,6 +35,11 @@ dependencies = [
     "apscheduler>=3.11,<4",
 ]
 
+[project.optional-dependencies]
+mysql = [
+    "asyncmy>=0.2.11,<1",
+]
+
 [project.urls]
 Homepage = "https://github.com/kaxiluo/fastkit"
 Repository = "https://github.com/kaxiluo/fastkit"
