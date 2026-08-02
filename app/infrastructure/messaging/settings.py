@@ -39,7 +39,7 @@ class MessagingSettings(BaseSettings):
     # 兜底轮询间隔;NOTIFY 是主路径,此值仅决定漏收 NOTIFY 的最大补偿延迟
     # 退避重试行由 _drain_until_empty 连续消化,不受此值限流
     outbox_poll_interval_seconds: float = 3.0
-    outbox_max_attempts: int = 100  # 单条消息最大投递尝试次数;超出转 DLQ
+    outbox_max_attempts: int = 100  # 单条消息最大投递尝试次数;超出标 status='dead'(不转 DLQ)
     outbox_backoff_max_seconds: int = 600  # 重试退避上限秒数
     outbox_batch_size: int = 100  # 单次轮询抓取的消息条数上限
 

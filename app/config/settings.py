@@ -38,7 +38,7 @@ class AppSettings(BaseSettings):
       BROKER_URL / MESSAGING_BROKER_URL   RabbitMQ 连接串(前者兼容旧名)
       MESSAGING_APP_NAME                  仅派生 MQ 资源名;缺省读 APP_NAME
       MESSAGING_OUTBOX_POLL_INTERVAL_SECONDS   outbox 表轮询间隔
-      MESSAGING_OUTBOX_MAX_ATTEMPTS           单条消息最大投递尝试次数;超出转 DLQ
+      MESSAGING_OUTBOX_MAX_ATTEMPTS           单条消息最大投递尝试次数;超出标 status='dead'(不转 DLQ)
       MESSAGING_OUTBOX_BACKOFF_MAX_SECONDS    重试退避上限秒数
       MESSAGING_OUTBOX_BATCH_SIZE             单次轮询抓取的消息条数上限
       MESSAGING_DLQ_EXCHANGE                  死信交换机名;缺省 {app_name}.dlx
