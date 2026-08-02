@@ -175,3 +175,62 @@ async def test_no_message_id_aborts_when_inbox_enabled(monkeypatch):
     assert isinstance(result, TaskResult)
     assert result.kind == "ABORT"
     assert result.reason == "missing_message_id"
+
+
+def test_spec_detects_databases_param():
+    from app.infrastructure.messaging.task_consumer import (
+        get_pending_consumers,
+        task_consumer,
+    )
+
+    @task_consumer("test.db.route")
+    async def handler(msg, *, databases):
+        pass
+
+    spec = get_pending_consumers()[-1]
+    assert spec.accepts_databases is True
+
+
+def test_spec_databases_false_when_not_declared():
+    from app.infrastructure.messaging.task_consumer import (
+        get_pending_consumers,
+        task_consumer,
+    )
+
+    @task_consumer("test.no.db")
+    async def handler(msg):
+        pass
+
+    spec = get_pending_consumers()[-1]
+    assert spec.accepts_databases is False
+
+
+async def test_wrapped_passes_databases_to_handler():
+    """handler 声明 databases 参数时,wrapped 注入对应值。"""
+    from unittest.mock import MagicMock
+
+    from app.infrastructure.database.business.handle import Databases
+    from app.infrastructure.messaging.task_consumer import (
+        _build_wrapped,
+        get_pending_consumers,
+        task_consumer,
+    )
+
+    received = {}
+
+    @task_consumer("test.db.inject")
+    async def handler(msg, *, databases):
+        received["databases"] = databases
+
+    spec = get_pending_consumers()[-1]
+    wrapped = _build_wrapped(spec, inbox_enabled=False, dispatcher=None)
+    fake_dbs = Databases()
+
+    await wrapped(
+        {"v": 1},
+        envelope={"message_id": "x"},
+        session_factory=MagicMock(),
+        integrations=None,
+        databases=fake_dbs,
+    )
+    assert received["databases"] is fake_dbs
