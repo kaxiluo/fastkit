@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -46,15 +46,22 @@ async def test_worker_lifespan_starts_consumers_then_stops_messaging() -> None:
         captured_providers.extend(ctx_providers)
         yield integrations
 
+    @asynccontextmanager
+    async def fake_databases_lifecycle(*_ctxs) -> AsyncGenerator:
+        from app.infrastructure.database.business.handle import Databases
+
+        yield Databases()
+
     with (
         patch("app.bootstrap.worker.app_context", _fake_app_context(ctx)),
         patch("app.bootstrap.worker.integrations_lifecycle", capturing_integrations_lifecycle),
+        patch("app.bootstrap.worker.databases_lifecycle", fake_databases_lifecycle),
     ):
         async with worker_lifespan(broker=broker) as yielded:
             assert yielded is ctx
 
     assert dummyjson_client_ctx in captured_providers
-    messaging.start_consumers.assert_awaited_once_with(integrations=integrations)
+    messaging.start_consumers.assert_awaited_once_with(integrations=integrations, databases=ANY)
     messaging.stop.assert_awaited_once_with()
 
 
