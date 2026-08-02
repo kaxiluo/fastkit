@@ -14,7 +14,6 @@ from contextlib import AsyncExitStack, asynccontextmanager
 import httpx
 
 from app.infrastructure.database.business.handle import BusinessDb, Databases
-from app.infrastructure.database.business.secondary import secondary_db_ctx  # demo:secondary-db
 from app.infrastructure.database.engine import build_engine, engine_lifecycle
 from app.infrastructure.database.session import build_session_factory
 from app.infrastructure.messaging.broker import build_broker
@@ -60,8 +59,8 @@ API_CLIENTS: tuple[ClientCtx, ...] = (dummyjson_client_ctx,)
 WORKER_CLIENTS: tuple[ClientCtx, ...] = (dummyjson_client_ctx,)
 SCHEDULER_CLIENTS: tuple[ClientCtx, ...] = ()  # 显式空,固化零装配
 
-API_DATABASES: tuple[DbCtx, ...] = (secondary_db_ctx,)  # demo:secondary-db
-WORKER_DATABASES: tuple[DbCtx, ...] = ()  # demo 不用 worker
+API_DATABASES: tuple[DbCtx, ...] = ()  # 业务库按需装配,见 docs/development-guide.md
+WORKER_DATABASES: tuple[DbCtx, ...] = ()
 SCHEDULER_DATABASES: tuple[DbCtx, ...] = ()  # 显式空,固化零装配
 
 
