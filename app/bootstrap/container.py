@@ -13,6 +13,8 @@ from contextlib import AsyncExitStack, asynccontextmanager
 
 import httpx
 
+from app.infrastructure.database.business.handle import BusinessDb, Databases
+from app.infrastructure.database.business.secondary import secondary_db_ctx  # demo:secondary-db
 from app.infrastructure.database.engine import build_engine, engine_lifecycle
 from app.infrastructure.database.session import build_session_factory
 from app.infrastructure.messaging.broker import build_broker
@@ -23,11 +25,15 @@ from app.integrations.dummyjson.settings import get_dummyjson_settings
 
 __all__ = [
     "API_CLIENTS",
+    "API_DATABASES",
     "WORKER_CLIENTS",
+    "WORKER_DATABASES",
     "SCHEDULER_CLIENTS",
+    "SCHEDULER_DATABASES",
     "build_broker",
     "build_engine",
     "build_session_factory",
+    "databases_lifecycle",
     "dummyjson_client_ctx",  # demo:dummyjson
     "engine_lifecycle",
     "integrations_lifecycle",
@@ -48,10 +54,15 @@ async def dummyjson_client_ctx() -> AsyncGenerator[DummyJsonClient]:
 
 
 ClientCtx = Callable[[], AsyncGenerator]
+DbCtx = Callable[[], AsyncGenerator[BusinessDb]]
 
 API_CLIENTS: tuple[ClientCtx, ...] = (dummyjson_client_ctx,)
 WORKER_CLIENTS: tuple[ClientCtx, ...] = (dummyjson_client_ctx,)
 SCHEDULER_CLIENTS: tuple[ClientCtx, ...] = ()  # 显式空,固化零装配
+
+API_DATABASES: tuple[DbCtx, ...] = (secondary_db_ctx,)  # demo:secondary-db
+WORKER_DATABASES: tuple[DbCtx, ...] = ()  # demo 不用 worker
+SCHEDULER_DATABASES: tuple[DbCtx, ...] = ()  # 显式空,固化零装配
 
 
 @asynccontextmanager
@@ -70,3 +81,20 @@ async def integrations_lifecycle(
             client = await stack.enter_async_context(ctx_provider())
             integrations.register(client)
         yield integrations
+
+
+@asynccontextmanager
+async def databases_lifecycle(
+    *ctxs: DbCtx,
+) -> AsyncGenerator[Databases]:
+    """进程级业务库句柄聚合生命周期(Composition Root 显式装配)。
+
+    只 enter 传入的 ctx;退出时逆序 dispose 各业务库 engine。
+    未列入的库其 settings 不被读 → 该进程零配置可启。
+    """
+    async with AsyncExitStack() as stack:
+        databases = Databases()
+        for c in ctxs:
+            handle = await stack.enter_async_context(c())
+            databases.register(handle)
+        yield databases
