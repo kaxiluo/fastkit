@@ -69,6 +69,40 @@ async def db_engine(
 
 
 @pytest_asyncio.fixture
+async def secondary_db_engine(
+    test_secondary_database_settings: DatabaseSettings,
+) -> AsyncIterator[AsyncEngine]:
+    """第二业务库 engine。DATABASE_SECONDARY_URL 不可达时 skip 而非 fail。"""
+    from sqlalchemy import text as sa_text
+    from sqlalchemy.exc import OperationalError
+
+    engine = build_engine(test_secondary_database_settings)
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(sa_text("SELECT 1"))
+    except (OperationalError, OSError):
+        # OperationalError:SQLAlchemy 包装的 asyncpg 连接失败
+        # OSError:纯网络层不可达
+        await engine.dispose()
+        pytest.skip("DATABASE_SECONDARY_URL 不可达,跳过 secondary db 集成测试")
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def secondary_db(secondary_db_engine: AsyncEngine):
+    from app.infrastructure.database.business.secondary import SecondaryDb
+    from app.infrastructure.database.session import build_session_factory
+
+    return SecondaryDb(
+        engine=secondary_db_engine,
+        session_factory=build_session_factory(secondary_db_engine),
+    )
+
+
+@pytest_asyncio.fixture
 async def session_factory(db_engine: AsyncEngine) -> async_sessionmaker:
     return build_session_factory(db_engine)
 

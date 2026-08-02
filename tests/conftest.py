@@ -46,6 +46,19 @@ def _make_test_database_settings() -> DatabaseSettings:
     return _TestDatabaseSettings()
 
 
+def _make_test_secondary_database_settings() -> DatabaseSettings:
+    class _TestSecondaryDatabaseSettings(DatabaseSettings):
+        model_config = SettingsConfigDict(
+            env_prefix="DATABASE_SECONDARY_",
+            env_file=_env_file(),
+            env_file_encoding="utf-8",
+            extra="ignore",
+            case_sensitive=False,
+        )
+
+    return _TestSecondaryDatabaseSettings()
+
+
 def _make_test_redis_settings() -> RedisSettings:
     class _TestRedisSettings(RedisSettings):
         model_config = SettingsConfigDict(
@@ -89,6 +102,12 @@ def test_settings() -> AppSettings:
 def test_database_settings() -> DatabaseSettings:
     _skip_if_no_env_test()
     return _make_test_database_settings()
+
+
+@pytest.fixture(scope="session")
+def test_secondary_database_settings() -> DatabaseSettings:
+    _skip_if_no_env_test()
+    return _make_test_secondary_database_settings()
 
 
 @pytest.fixture(scope="session")
