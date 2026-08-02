@@ -17,7 +17,7 @@ OUTBOX_RETENTION_DAYS = 30
 
 @cron_job(CronTrigger(hour=2), job_id="outbox_retention", misfire_grace_time=3600)
 async def run_outbox_retention(session_factory: async_sessionmaker) -> None:
-    """删除 published_at 超 OUTBOX_RETENTION_DAYS 天的行（active 已发布行 + dead 行）。
+    """删除 published_at 超 OUTBOX_RETENTION_DAYS 天的行（published 行 + dead 行）。
 
     published_at IS NULL 的 pending 行不受影响。
     """
