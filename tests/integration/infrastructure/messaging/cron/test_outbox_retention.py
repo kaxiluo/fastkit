@@ -19,7 +19,7 @@ async def _truncate(db_engine):
 
 
 async def _insert(
-    session_factory: async_sessionmaker, *, published_at_expr: str, status: str = "active"
+    session_factory: async_sessionmaker, *, published_at_expr: str, status: str = "published"
 ) -> int:
     """插入一行 outbox，返回 id。published_at_expr 是 SQL 表达式，如 'NOW() - INTERVAL ''31 days'''。"""
     async with session_factory() as s, s.begin():
@@ -62,9 +62,9 @@ async def _count(session_factory: async_sessionmaker) -> int:
 
 
 @pytest.mark.integration
-async def test_deletes_old_published_active_rows(session_factory: async_sessionmaker):
-    """超 30 天的 active published 行应被删除。"""
-    await _insert(session_factory, published_at_expr="NOW() - INTERVAL '31 days'", status="active")
+async def test_deletes_old_published_rows(session_factory: async_sessionmaker):
+    """超 30 天的 published 行应被删除。"""
+    await _insert(session_factory, published_at_expr="NOW() - INTERVAL '31 days'", status="published")
     await run_outbox_retention(session_factory)
     assert await _count(session_factory) == 0
 
@@ -80,7 +80,7 @@ async def test_deletes_old_dead_rows(session_factory: async_sessionmaker):
 @pytest.mark.integration
 async def test_keeps_recent_rows(session_factory: async_sessionmaker):
     """未超 30 天的 published 行不应被删除。"""
-    await _insert(session_factory, published_at_expr="NOW() - INTERVAL '29 days'", status="active")
+    await _insert(session_factory, published_at_expr="NOW() - INTERVAL '29 days'", status="published")
     await run_outbox_retention(session_factory)
     assert await _count(session_factory) == 1
 
@@ -95,10 +95,10 @@ async def test_keeps_pending_rows(session_factory: async_sessionmaker):
 
 @pytest.mark.integration
 async def test_mixed_rows(session_factory: async_sessionmaker):
-    """混合场景：4 行，删 2 行（超期 active + 超期 dead），留 2 行（未超期 + pending）。"""
-    await _insert(session_factory, published_at_expr="NOW() - INTERVAL '31 days'", status="active")
+    """混合场景：4 行，删 2 行（超期 published + 超期 dead），留 2 行（未超期 + pending）。"""
+    await _insert(session_factory, published_at_expr="NOW() - INTERVAL '31 days'", status="published")
     await _insert(session_factory, published_at_expr="NOW() - INTERVAL '31 days'", status="dead")
-    await _insert(session_factory, published_at_expr="NOW() - INTERVAL '29 days'", status="active")
+    await _insert(session_factory, published_at_expr="NOW() - INTERVAL '29 days'", status="published")
     await _insert_pending(session_factory)
 
     await run_outbox_retention(session_factory)

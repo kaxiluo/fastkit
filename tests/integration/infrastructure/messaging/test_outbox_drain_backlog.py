@@ -32,7 +32,7 @@ async def _insert_rows(session_factory, n: int) -> None:
 async def _pending_count(session_factory) -> int:
     async with session_factory() as session:
         result = await session.execute(
-            text("SELECT COUNT(*) FROM fastkit_outbox WHERE published_at IS NULL")
+            text("SELECT COUNT(*) FROM fastkit_outbox WHERE status = 'pending'")
         )
         return result.scalar_one()
 
@@ -79,7 +79,7 @@ async def test_drain_until_empty_converges_when_broker_is_down(
         result = await session.execute(
             text(
                 "SELECT COUNT(*) FROM fastkit_outbox "
-                "WHERE published_at IS NULL AND attempts = 1 AND next_attempt_at > NOW()"
+                "WHERE status = 'pending' AND attempts = 1 AND next_attempt_at > NOW()"
             )
         )
         assert result.scalar_one() == 3
