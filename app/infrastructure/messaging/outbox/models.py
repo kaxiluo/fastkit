@@ -28,5 +28,5 @@ class Outbox(Base):
     next_attempt_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    status: Mapped[str] = mapped_column(String(16), nullable=False, server_default="active")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, server_default="pending")
     dead_reason: Mapped[str | None] = mapped_column(Text, nullable=True)

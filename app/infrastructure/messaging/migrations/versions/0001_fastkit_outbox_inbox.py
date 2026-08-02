@@ -26,7 +26,7 @@ def upgrade() -> None:
             attempts INT NOT NULL DEFAULT 0 CHECK (attempts >= 0),
             last_error TEXT,
             next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            status VARCHAR(16) NOT NULL DEFAULT 'active',
+            status VARCHAR(16) NOT NULL DEFAULT 'pending',
             dead_reason TEXT
         )
         """
@@ -70,7 +70,7 @@ def upgrade() -> None:
     )
     op.execute(
         "COMMENT ON COLUMN fastkit_outbox.status IS "
-        "'行状态: active=待发/重试中, dead=已达 max_attempts 进入死信'"
+        "'行状态: pending=待发/重试中, published=已成功投递到 broker, dead=已达 max_attempts 进入死信'"
     )
     op.execute(
         "COMMENT ON COLUMN fastkit_outbox.dead_reason IS "
@@ -79,7 +79,7 @@ def upgrade() -> None:
 
     op.execute(
         "CREATE INDEX idx_fastkit_outbox_pending ON fastkit_outbox (next_attempt_at, id) "
-        "WHERE published_at IS NULL AND status = 'active'"
+        "WHERE status = 'pending'"
     )
     op.execute(
         "CREATE INDEX idx_fastkit_outbox_published ON fastkit_outbox (published_at) "

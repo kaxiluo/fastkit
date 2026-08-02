@@ -22,7 +22,7 @@ async def test_outbox_has_status_and_dead_reason_columns(session_factory):
     columns = {r.column_name: r for r in rows}
     assert "status" in columns
     assert "dead_reason" in columns
-    assert "active" in columns["status"].column_default
+    assert "pending" in columns["status"].column_default
 
 
 async def test_idx_outbox_pending_filters_status(session_factory):
