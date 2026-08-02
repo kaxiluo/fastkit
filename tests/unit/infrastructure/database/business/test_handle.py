@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.infrastructure.database.business.handle import (
     BusinessDb,
-    Databases,
     DatabaseNotRegisteredError,
+    Databases,
+    business_db_ctx,
 )
 
 
@@ -56,3 +57,30 @@ def test_databases_all_returns_all_handles():
 
 def test_databases_empty_all():
     assert Databases().all() == []
+
+
+async def test_business_db_ctx_yields_correct_handle_type_and_disposes():
+    """business_db_ctx 返回的 ctx 能正常 yield handle，退出后 dispose engine。"""
+    fake_engine = MagicMock(name="engine")
+    fake_engine.dispose = AsyncMock()
+
+    # engine_lifecycle 是纯 async generator（async for 消费），不是 context manager
+    async def _fake_engine_lifecycle(_settings):
+        yield fake_engine
+
+    class TestDb(BusinessDb):
+        pass
+
+    from app.infrastructure.database.settings import DatabaseSettings
+
+    class TestSettings(DatabaseSettings):
+        pass
+
+    with patch(
+        "app.infrastructure.database.business.handle.engine_lifecycle",
+        _fake_engine_lifecycle,
+    ):
+        ctx_fn = business_db_ctx(TestDb, TestSettings)
+        async with ctx_fn() as handle:
+            assert isinstance(handle, TestDb)
+            assert handle.engine is fake_engine

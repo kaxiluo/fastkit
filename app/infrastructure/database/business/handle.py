@@ -75,7 +75,7 @@ def business_db_ctx(
     @asynccontextmanager
     async def _ctx() -> AsyncGenerator[BusinessDbT]:
         settings = settings_type()
-        async with engine_lifecycle(settings) as eng:
+        async for eng in engine_lifecycle(settings):
             yield handle_type(eng, build_session_factory(eng))
 
     return _ctx

@@ -106,6 +106,33 @@ async def test_api_lifespan_injects_container_and_cleans_up_on_exit() -> None:
     fake_container.close.assert_awaited_once_with()
 
 
+def test_build_databases_provider_provides_handles_by_concrete_type() -> None:
+    """build_databases_provider 为每个 handle 按其具体类型注册 provide。"""
+    from dishka import make_container
+
+    from app.bootstrap.api import build_databases_provider
+    from app.infrastructure.database.business.handle import BusinessDb, Databases
+
+    class DbA(BusinessDb):
+        pass
+
+    class DbB(BusinessDb):
+        pass
+
+    handle_a = DbA(engine=MagicMock(), session_factory=MagicMock())
+    handle_b = DbB(engine=MagicMock(), session_factory=MagicMock())
+
+    dbs = Databases()
+    dbs.register(handle_a)
+    dbs.register(handle_b)
+
+    provider = build_databases_provider(dbs)
+    container = make_container(provider)
+    with container() as c:
+        assert c.get(DbA) is handle_a
+        assert c.get(DbB) is handle_b
+
+
 @pytest.mark.asyncio
 async def test_dummyjson_client_ctx_yields_dummyjson_client() -> None:
     async with dummyjson_client_ctx() as client:
