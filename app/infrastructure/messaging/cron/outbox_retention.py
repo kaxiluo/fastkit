@@ -1,4 +1,4 @@
-"""Outbox 历史记录清理 job：删除超保留期的已发布行。"""
+"""Outbox 历史记录清理 job：删除超保留期的已终态行(published/dead)。"""
 
 from __future__ import annotations
 

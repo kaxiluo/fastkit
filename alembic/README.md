@@ -41,7 +41,7 @@ fastkit 的迁移分两层,通过 `alembic.ini` 的 `version_locations` 合成�
 - **COMMENT**:`CREATE TABLE` 配套 `COMMENT ON TABLE`,每个字段配套 `COMMENT ON COLUMN`;同表的 COMMENT 合并到一个多语句 `op.execute` 里。
 - **标点全 ASCII 半角**(`,:;()`),中文全角 `，（）：；` 会让 asyncpg prepared statement 炸 `syntax error at or near ")"`。
 - **upgrade/downgrade 对称**:upgrade 建什么,downgrade 按反序 DROP 什么。`DROP TABLE` / `DROP COLUMN` 自动级联 COMMENT,无需单独 DROP。
-- **状态枚举字段**:在 COMMENT 里列全可选值(如 `active=待发/重试中, dead=...`)。
+- **状态枚举字段**:在 COMMENT 里列全可选值(如 fastkit_outbox 的 `status`:`pending=待发/重试中, published=已投递, dead=达 max_attempts 进入死信`)。
 
 ## 异常处理:测试库 `alembic_version` 失配
 

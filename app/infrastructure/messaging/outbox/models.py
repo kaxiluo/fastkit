@@ -1,4 +1,4 @@
-"""Outbox ORM:relay 从这里扫未发布行 → publish → 更新 published_at。"""
+"""Outbox ORM:relay 扫 status='pending' 行 → publish 成功标 published + published_at / 失败达上限标 dead + dead_at。"""
 
 from __future__ import annotations
 
