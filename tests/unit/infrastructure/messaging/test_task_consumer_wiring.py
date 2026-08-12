@@ -2,6 +2,7 @@ import importlib
 from unittest.mock import AsyncMock
 
 import pytest
+import structlog
 from pydantic import BaseModel
 from structlog.testing import capture_logs
 
@@ -138,13 +139,17 @@ async def test_wrapped_handler_runs_handler_when_new(monkeypatch):
     assert result is None or (isinstance(result, TaskResult) and result.kind == "FINISHED")
 
 
-async def test_wrapped_handler_swallows_exception_but_logs():
+async def test_wrapped_handler_swallows_exception_but_logs(monkeypatch):
+    # cache_logger_on_first_use=True 会让模块级 log 在第一次方法调用后锁定处理器链;
+    # 全套模式下集成测试先调了 configure_logging(),_TASK_CONSUMER_MODULE.log 已被锁到
+    # stdlib 路由,capture_logs 无法截到。换成 fresh logger 绕开缓存。
+    monkeypatch.setattr(_TASK_CONSUMER_MODULE, "log", structlog.get_logger())
+
     @task_consumer("t.evt6", inbox=False)
     async def handler(m: Msg):
         raise RuntimeError("boom")
 
     spec = get_pending_consumers()[-1]
-    # structlog 走自己的事件链,不经过 stdlib caplog;用 structlog.testing.capture_logs 抓事件字典
     with capture_logs() as cap:
         # inbox=False 时不走 try_claim_message
         result = await spec.wrapped(Msg(v=1), envelope={"message_id": "x"}, session_factory=None)
