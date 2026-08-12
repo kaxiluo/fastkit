@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from structlog.testing import capture_logs
+
 
 @dataclass
 class _FakeDispatcher:
@@ -140,10 +142,8 @@ async def test_failure_without_retry_policy_dead_letters_immediately():
     assert len(dispatcher.dead_letter_calls) == 1
 
 
-async def test_dispatcher_none_falls_back_to_ack_only(caplog):
+async def test_dispatcher_none_falls_back_to_ack_only():
     """dispatcher=None(装饰阶段)→ handler 异常降级为仅 ack + ABORT。"""
-    import logging
-
     from app.infrastructure.messaging.task_consumer import _build_wrapped, _ConsumerSpec
     from app.infrastructure.messaging.task_result import TaskResult
 
@@ -159,7 +159,8 @@ async def test_dispatcher_none_falls_back_to_ack_only(caplog):
         retry_policy=None,
     )
     wrapped = _build_wrapped(spec, inbox_enabled=False, dispatcher=None)
-    with caplog.at_level(logging.ERROR, logger="app.infrastructure.messaging.task_consumer"):
+    # structlog 走自己的事件链,不经过 stdlib caplog;用 structlog.testing.capture_logs 抓事件字典
+    with capture_logs() as cap_logs:
         result = await wrapped(
             {"a": 1},
             envelope={"message_id": "m1", "routing_key": "test.fallback", "attempts": 1},
@@ -167,3 +168,5 @@ async def test_dispatcher_none_falls_back_to_ack_only(caplog):
         )
     assert isinstance(result, TaskResult) and result.kind == "ABORT"
     assert result.reason == "handler_exception"
+    # 非关键断言:确认 handler 异常被记成 task.handler_raised 事件(关键断言仍是上面两条)
+    assert any(e["event"] == "task.handler_raised" for e in cap_logs)

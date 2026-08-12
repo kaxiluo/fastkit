@@ -138,7 +138,7 @@ async def test_wrapped_handler_runs_handler_when_new(monkeypatch):
     assert result is None or (isinstance(result, TaskResult) and result.kind == "FINISHED")
 
 
-async def test_wrapped_handler_swallows_exception_but_logs(monkeypatch):
+async def test_wrapped_handler_swallows_exception_but_logs():
     @task_consumer("t.evt6", inbox=False)
     async def handler(m: Msg):
         raise RuntimeError("boom")
