@@ -29,10 +29,10 @@ cp .env.example .env
 # 3. 跑数据库迁移(详见 alembic/README.md)
 uv run alembic upgrade head
 
-# 4. 三个进程(本地开发)
-uv run uvicorn app.entrypoints.http.app:app      --reload --port 8000
-uv run uvicorn app.entrypoints.worker:app        --port 8001
-uv run python -m app.entrypoints.scheduler
+# 4. 三个进程(本地开发)—— Makefile 别名见 `make help`
+make dev-http        # = uv run uvicorn app.entrypoints.http.app:app   --reload --port 8000
+make dev-worker      # = uv run uvicorn app.entrypoints.worker:app     --port 8001
+make dev-scheduler   # = uv run python -m app.entrypoints.scheduler
 # 生产参数(Dockerfile / 编排用):
 # uvicorn app.entrypoints.http.app:app   --host 0.0.0.0 --port 8000 --workers 4 --proxy-headers --forwarded-allow-ips '*' --no-access-log
 # uvicorn app.entrypoints.worker:app     --host 0.0.0.0 --port 8001
