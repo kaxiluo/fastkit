@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -12,6 +11,7 @@ from functools import wraps
 from typing import Any, get_type_hints
 from uuid import uuid4
 
+import structlog
 from pydantic import BaseModel, TypeAdapter
 
 from app.infrastructure.messaging.envelope import FailureInfo
@@ -19,7 +19,7 @@ from app.infrastructure.messaging.inbox.middleware import try_claim_message
 from app.infrastructure.messaging.retry_policy import RetryPolicy
 from app.infrastructure.messaging.task_result import TaskResult
 
-log = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 
 class _UnsetType:
@@ -189,11 +189,9 @@ def _build_wrapped(
             if dispatcher is None:
                 log.exception(
                     "task.handler_raised",
-                    extra={
-                        "handler": handler_qualname,
-                        "message_id": envelope.get("message_id"),
-                        "routing_key": envelope.get("routing_key"),
-                    },
+                    handler=handler_qualname,
+                    message_id=envelope.get("message_id"),
+                    routing_key=envelope.get("routing_key"),
                 )
                 return TaskResult.ABORT("handler_exception")
 
@@ -204,12 +202,10 @@ def _build_wrapped(
                 await dispatcher.dead_letter(payload, envelope=new_envelope)
                 log.exception(
                     "task.dead_lettered",
-                    extra={
-                        "handler": handler_qualname,
-                        "message_id": envelope.get("message_id"),
-                        "attempts": attempts,
-                        "max_attempts": retry_policy.max_attempts if retry_policy else 1,
-                    },
+                    handler=handler_qualname,
+                    message_id=envelope.get("message_id"),
+                    attempts=attempts,
+                    max_attempts=retry_policy.max_attempts if retry_policy else 1,
                 )
                 return TaskResult.ABORT("dead_lettered")
 
@@ -232,11 +228,9 @@ def _build_wrapped(
             )
             log.warning(
                 "task.retry_scheduled",
-                extra={
-                    "handler": handler_qualname,
-                    "message_id": envelope.get("message_id"),
-                    "attempts_after": attempts + 1,
-                },
+                handler=handler_qualname,
+                message_id=envelope.get("message_id"),
+                attempts_after=attempts + 1,
             )
             return TaskResult.ABORT("retry_scheduled")
 
@@ -248,18 +242,17 @@ def _build_wrapped(
             if not message_id:
                 log.warning(
                     "task.no_message_id",
-                    extra={"handler": handler_qualname, "envelope": envelope},
+                    handler=handler_qualname,
+                    envelope=envelope,
                 )
                 return TaskResult.ABORT("missing_message_id")
             ok = await try_claim_message(handler_qualname, message_id, session_factory)
             if not ok:
                 log.info(
                     "task.aborted",
-                    extra={
-                        "handler": handler_qualname,
-                        "message_id": message_id,
-                        "reason": "duplicate_message",
-                    },
+                    handler=handler_qualname,
+                    message_id=message_id,
+                    reason="duplicate_message",
                 )
                 return TaskResult.ABORT("duplicate_message")
 
@@ -283,11 +276,9 @@ def _build_wrapped(
             if timeout is not None and cm.expired():
                 log.warning(
                     "task.timeout",
-                    extra={
-                        "handler": handler_qualname,
-                        "message_id": envelope.get("message_id"),
-                        "timeout_seconds": timeout,
-                    },
+                    handler=handler_qualname,
+                    message_id=envelope.get("message_id"),
+                    timeout_seconds=timeout,
                 )
                 return await _route_failure(TaskTimeout(f"handler exceeded {timeout}s"))
             return await _route_failure(exc)
@@ -300,11 +291,9 @@ def _build_wrapped(
             if result.kind == "ABORT":
                 log.info(
                     "task.aborted",
-                    extra={
-                        "handler": handler_qualname,
-                        "message_id": envelope.get("message_id"),
-                        "reason": result.reason,
-                    },
+                    handler=handler_qualname,
+                    message_id=envelope.get("message_id"),
+                    reason=result.reason,
                 )
             return result
         raise TypeError(

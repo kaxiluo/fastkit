@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import logging
-
+import structlog
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.infrastructure.scheduler.registry import cron_job
 
-log = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 INBOX_RETENTION_DAYS = 30
 
@@ -26,4 +25,4 @@ async def run_inbox_retention(session_factory: async_sessionmaker) -> None:
             """),
             {"days": INBOX_RETENTION_DAYS},
         )
-    log.info("inbox.retention_done", extra={"deleted": result.rowcount})
+    log.info("inbox.retention_done", deleted=result.rowcount)

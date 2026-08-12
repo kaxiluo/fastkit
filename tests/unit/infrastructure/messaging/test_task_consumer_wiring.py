@@ -1,9 +1,9 @@
 import importlib
-import logging
 from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import BaseModel
+from structlog.testing import capture_logs
 
 from app.infrastructure.messaging.task_consumer import (
     clear_pending_consumers,
@@ -138,14 +138,14 @@ async def test_wrapped_handler_runs_handler_when_new(monkeypatch):
     assert result is None or (isinstance(result, TaskResult) and result.kind == "FINISHED")
 
 
-async def test_wrapped_handler_swallows_exception_but_logs(monkeypatch, caplog):
+async def test_wrapped_handler_swallows_exception_but_logs(monkeypatch):
     @task_consumer("t.evt6", inbox=False)
     async def handler(m: Msg):
         raise RuntimeError("boom")
 
     spec = get_pending_consumers()[-1]
-    # task_consumer 模块 logger 默认 propagate=True;caplog 抓 root
-    with caplog.at_level(logging.ERROR, logger="app.infrastructure.messaging.task_consumer"):
+    # structlog 走自己的事件链,不经过 stdlib caplog;用 structlog.testing.capture_logs 抓事件字典
+    with capture_logs() as cap:
         # inbox=False 时不走 try_claim_message
         result = await spec.wrapped(Msg(v=1), envelope={"message_id": "x"}, session_factory=None)
 
@@ -153,7 +153,8 @@ async def test_wrapped_handler_swallows_exception_but_logs(monkeypatch, caplog):
     assert result is None or (
         isinstance(result, TaskResult) and result.kind in ("ABORT", "FINISHED")
     )
-    assert any("boom" in r.message or "boom" in str(r.exc_info or ()) for r in caplog.records)
+    # 断言 handler 异常被记成 task.handler_raised 事件(exc_info 由 structlog 处理)
+    assert any(event["event"] == "task.handler_raised" for event in cap)
 
 
 async def test_no_message_id_aborts_when_inbox_enabled(monkeypatch):

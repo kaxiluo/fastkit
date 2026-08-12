@@ -51,3 +51,10 @@
   - outbox 表在主 PG,只保证"主库事务内 outbox 落地 → 消息必达"
   - **业务库写 + 主库 outbox 写本身跨库,无法单事务原子**
   - 正确姿势:业务库写 → 消费侧幂等 + inbox 去重承接。不要指望业务库写与 outbox 写原子绑定
+
+## 9. 日志
+
+- **业务模块统一 structlog**:`log = structlog.get_logger(__name__)`,上下文走 kwargs(`log.info("module.event", key=value)`,kwargs 直接进 event_dict)
+- **不要 stdlib `logging.getLogger` + `extra={...}`**:extra 经 structlog `ProcessorFormatter` 不渲染,字段全部丢失
+- **事件名** `<模块>.<动作>`(点号分隔,如 `example.created`、`outbox.dead`)
+- **例外**:`app/infrastructure/observability/logging.py` 配置 root logger / handler 时仍用 stdlib API(那是 stdlib 入口)

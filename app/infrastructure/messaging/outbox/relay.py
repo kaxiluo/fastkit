@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from contextlib import suppress
 
+import structlog
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.infrastructure.messaging.settings import MessagingSettings
 
-log = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 OUTBOX_NOTIFY_CHANNEL = "fastkit_outbox_new"
 
@@ -97,12 +97,10 @@ async def _drain_once(
                     )
                     log.error(
                         "outbox.dead",
-                        extra={
-                            "outbox_id": row["id"],
-                            "routing_key": row["routing_key"],
-                            "attempts": new_attempts,
-                            "error": repr(e),
-                        },
+                        outbox_id=row["id"],
+                        routing_key=row["routing_key"],
+                        attempts=new_attempts,
+                        error=repr(e),
                     )
                 else:
                     # 未达上限:原有 backoff 逻辑(用已 +1 的 new_attempts,首次失败退避从 2s 起)
@@ -121,13 +119,11 @@ async def _drain_once(
                     )
                     log.warning(
                         "outbox.publish_failed",
-                        extra={
-                            "outbox_id": row["id"],
-                            "routing_key": row["routing_key"],
-                            "attempts": new_attempts,
-                            "delay": delay,
-                            "error": repr(e),
-                        },
+                        outbox_id=row["id"],
+                        routing_key=row["routing_key"],
+                        attempts=new_attempts,
+                        delay=delay,
+                        error=repr(e),
                     )
     return fetched
 

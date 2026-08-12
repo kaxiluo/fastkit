@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from collections.abc import Callable
 
+import structlog
 from faststream.rabbit import Channel, RabbitBroker, RabbitMessage, RabbitQueue
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -23,7 +23,7 @@ from app.infrastructure.messaging.task_consumer import (
     get_pending_consumers,
 )
 
-log = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 
 class Messaging:
@@ -78,7 +78,7 @@ class Messaging:
         )
         log.info(
             "messaging.consumers_ready",
-            extra={"count": len(get_pending_consumers())},
+            count=len(get_pending_consumers()),
         )
 
     async def stop(self) -> None:
@@ -130,7 +130,8 @@ class Messaging:
             )
             log.info(
                 "messaging.consumer_bound",
-                extra={"routing_key": spec.routing_key, "concurrency": spec.concurrency},
+                routing_key=spec.routing_key,
+                concurrency=spec.concurrency,
             )
 
 

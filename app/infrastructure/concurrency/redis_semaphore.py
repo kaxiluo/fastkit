@@ -7,15 +7,15 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from uuid import uuid4
 
+import structlog
 from redis.asyncio import Redis
 
-log = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 # KEYS[1]=prefix; ARGV[1]=capacity ARGV[2]=token ARGV[3]=lease
 _ACQUIRE_LUA = """
@@ -106,5 +106,5 @@ class RedisSemaphore:
             await asyncio.sleep(interval)
             ok = await self._renew_script(keys=[key], args=[token, self._lease])
             if not ok:
-                log.warning("redis_semaphore.lease_lost", extra={"key": key})
+                log.warning("redis_semaphore.lease_lost", key=key)
                 return
