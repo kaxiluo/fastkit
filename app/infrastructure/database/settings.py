@@ -19,7 +19,7 @@ class DatabaseSettings(BaseSettings):
     pool_size: int = 10  # 池内常驻连接数
     max_overflow: int = 10  # 超出 pool_size 后允许的临时扩张
     pool_recycle: int = 1800  # 单连接最大存活秒数,绕开 DB 侧 idle 超时
-    pool_timeout: int = 5  # 池耗尽时获取连接的等待秒数
+    pool_timeout: int = 60  # 池满时排队等待秒数;偏长用于软背压,避免高峰直接抛 TimeoutError 走 retry/DLQ
 
 
 @lru_cache
