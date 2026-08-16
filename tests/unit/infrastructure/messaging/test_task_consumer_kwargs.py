@@ -1,10 +1,14 @@
-"""验证 _build_wrapped 按 handler signature 传 session_factory / envelope。"""
+"""验证 _build_wrapped 按 handler signature 传 kwargs。
+
+覆盖:session_factory / envelope / integrations / redis / attempts / max_attempts。
+"""
 
 from __future__ import annotations
 
 import pytest
 from pydantic import BaseModel
 
+from app.infrastructure.messaging.retry_policy import RetryPolicy
 from app.infrastructure.messaging.task_consumer import (
     _build_wrapped,
     _ConsumerSpec,
@@ -107,6 +111,71 @@ async def test_spec_detects_integrations_param():
         pass
 
     assert _get_spec("t.integ.detect").accepts_integrations is True
+
+
+async def test_handler_receives_attempts_and_max_attempts_when_declared():
+    seen = {}
+
+    @task_consumer("t.attempts", inbox=False, retry=RetryPolicy(max_attempts=3))
+    async def h(msg: _Payload, *, attempts: int, max_attempts: int) -> None:
+        seen["attempts"] = attempts
+        seen["max_attempts"] = max_attempts
+
+    spec = _get_spec("t.attempts")
+    wrapped = _build_wrapped(spec, inbox_enabled=False, dispatcher=None)
+    await wrapped(
+        {"message_version": 1, "v": 1},
+        envelope={"attempts": 2, "message_id": "a"},
+        session_factory=object(),
+    )
+    assert seen == {"attempts": 2, "max_attempts": 3}
+
+
+async def test_no_retry_policy_max_attempts_defaults_to_one():
+    seen = {}
+
+    @task_consumer("t.no_retry", inbox=False, retry=False)
+    async def h(msg: _Payload, *, attempts: int, max_attempts: int) -> None:
+        seen["max_attempts"] = max_attempts
+
+    spec = _get_spec("t.no_retry")
+    wrapped = _build_wrapped(spec, inbox_enabled=False, dispatcher=None)
+    await wrapped(
+        {"message_version": 1, "v": 1},
+        envelope={"attempts": 1, "message_id": "n"},
+        session_factory=object(),
+    )
+    assert seen == {"max_attempts": 1}
+
+
+async def test_handler_receives_redis_when_declared():
+    seen = {}
+
+    @task_consumer("t.redis", inbox=False, retry=False)
+    async def h(msg: _Payload, *, redis) -> None:
+        seen["redis"] = redis
+
+    sentinel = object()
+    spec = _get_spec("t.redis")
+    wrapped = _build_wrapped(spec, inbox_enabled=False, dispatcher=None)
+    await wrapped(
+        {"message_version": 1, "v": 1},
+        envelope={"attempts": 1, "message_id": "r"},
+        session_factory=object(),
+        redis=sentinel,
+    )
+    assert seen == {"redis": sentinel}
+
+
+async def test_spec_detects_redis_attempts_max_attempts_params():
+    @task_consumer("t.detect.all", inbox=False, retry=False)
+    async def h(msg: _Payload, *, redis, attempts: int, max_attempts: int) -> None:
+        pass
+
+    spec = _get_spec("t.detect.all")
+    assert spec.accepts_redis is True
+    assert spec.accepts_attempts is True
+    assert spec.accepts_max_attempts is True
 
 
 def _get_spec(routing_key: str) -> _ConsumerSpec:

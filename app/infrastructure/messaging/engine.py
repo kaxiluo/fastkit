@@ -48,6 +48,7 @@ class Messaging:
         self._dispatcher: RetryDispatcher | None = None
         self._integrations: object = None
         self._databases: object = None
+        self._redis: object = None
 
     @property
     def registry(self) -> EventRegistry:
@@ -62,10 +63,12 @@ class Messaging:
         self,
         integrations: object = None,
         databases: object = None,
+        redis: object = None,
     ) -> None:
         """Worker 进程:声明 DLQ + retry 拓扑 → 绑定 consumer → start broker → 起 relay。"""
         self._integrations = integrations
         self._databases = databases
+        self._redis = redis
         await self._broker.connect()
         await declare_dlq(self._broker, self._settings)
         await declare_retry(self._broker, self._settings)
@@ -126,6 +129,7 @@ class Messaging:
                     self._session_factory,
                     self._integrations,
                     self._databases,
+                    self._redis,
                 )
             )
             log.info(
@@ -140,6 +144,7 @@ def _make_entry(
     session_factory: async_sessionmaker,
     integrations: object,
     databases: object,
+    redis: object,
 ):
     """FastStream subscriber 层入口:从 msg 拿 headers → parse_envelope → 调 wrapped。"""
 
@@ -151,6 +156,7 @@ def _make_entry(
             session_factory=session_factory,
             integrations=integrations,
             databases=databases,
+            redis=redis,
         )
 
     return _entry

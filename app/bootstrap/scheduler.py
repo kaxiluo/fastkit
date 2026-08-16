@@ -40,6 +40,8 @@ async def scheduler_lifespan() -> AsyncGenerator[AppContext]:
                 kwargs["integrations"] = integrations
             if spec.accepts_databases:
                 kwargs["databases"] = databases
+            if spec.accepts_redis:
+                kwargs["redis"] = ctx.redis
             scheduler.add_job(
                 spec.func,
                 spec.trigger,

@@ -1,4 +1,4 @@
-"""验证 _make_entry 把 session_factory / integrations / databases 透传给 wrapped。"""
+"""验证 _make_entry 把 session_factory / integrations / databases / redis 透传给 wrapped。"""
 
 from __future__ import annotations
 
@@ -8,13 +8,14 @@ from unittest.mock import AsyncMock
 from app.infrastructure.messaging.engine import _make_entry
 
 
-async def test_make_entry_forwards_session_factory_integrations_databases():
+async def test_make_entry_forwards_all_injected_kwargs():
     wrapped = AsyncMock()
     session_factory = object()
     integrations = object()
     databases = object()
+    redis = object()
 
-    entry = _make_entry(wrapped, session_factory, integrations, databases)
+    entry = _make_entry(wrapped, session_factory, integrations, databases, redis)
     await entry({"v": 1}, SimpleNamespace(headers={}))
 
     wrapped.assert_awaited_once()
@@ -22,3 +23,4 @@ async def test_make_entry_forwards_session_factory_integrations_databases():
     assert kwargs["session_factory"] is session_factory
     assert kwargs["integrations"] is integrations
     assert kwargs["databases"] is databases
+    assert kwargs["redis"] is redis

@@ -131,3 +131,19 @@ def test_spec_no_databases_param():
         pass
 
     assert get_registered_cron_jobs()[0].accepts_databases is False
+
+
+def test_spec_detects_redis_param():
+    @cron_job(CronTrigger(hour=14), job_id="with_redis")
+    async def with_redis(redis) -> None:
+        pass
+
+    assert get_registered_cron_jobs()[0].accepts_redis is True
+
+
+def test_spec_no_redis_param():
+    @cron_job(CronTrigger(hour=15), job_id="no_redis")
+    async def no_redis() -> None:
+        pass
+
+    assert get_registered_cron_jobs()[0].accepts_redis is False

@@ -36,6 +36,7 @@ async def test_worker_lifespan_starts_consumers_then_stops_messaging() -> None:
     ctx = SimpleNamespace(
         settings=SimpleNamespace(app_name="test-app"),
         messaging=messaging,
+        redis=MagicMock(name="redis"),
     )
     broker = MagicMock(name="broker")
     integrations = MagicMock(name="integrations")
@@ -61,7 +62,11 @@ async def test_worker_lifespan_starts_consumers_then_stops_messaging() -> None:
             assert yielded is ctx
 
     assert dummyjson_client_ctx in captured_providers
-    messaging.start_consumers.assert_awaited_once_with(integrations=integrations, databases=ANY)
+    messaging.start_consumers.assert_awaited_once_with(
+        integrations=integrations,
+        databases=ANY,
+        redis=ctx.redis,
+    )
     messaging.stop.assert_awaited_once_with()
 
 
@@ -88,6 +93,7 @@ async def test_scheduler_lifespan_injects_session_factory_integrations_and_datab
     ctx = SimpleNamespace(
         settings=SimpleNamespace(app_name="test-app"),
         session_factory=session_factory,
+        redis=MagicMock(name="redis"),
     )
 
     spec_with_sf = SimpleNamespace(
@@ -99,6 +105,7 @@ async def test_scheduler_lifespan_injects_session_factory_integrations_and_datab
         accepts_session_factory=True,
         accepts_integrations=False,
         accepts_databases=False,
+        accepts_redis=False,
     )
     spec_without_sf = SimpleNamespace(
         func=lambda: None,
@@ -109,6 +116,7 @@ async def test_scheduler_lifespan_injects_session_factory_integrations_and_datab
         accepts_session_factory=False,
         accepts_integrations=False,
         accepts_databases=False,
+        accepts_redis=False,
     )
     spec_with_integ = SimpleNamespace(
         func=lambda **_kw: None,
@@ -119,6 +127,7 @@ async def test_scheduler_lifespan_injects_session_factory_integrations_and_datab
         accepts_session_factory=False,
         accepts_integrations=True,
         accepts_databases=False,
+        accepts_redis=False,
     )
     spec_with_dbs = SimpleNamespace(
         func=lambda **_kw: None,
@@ -129,6 +138,18 @@ async def test_scheduler_lifespan_injects_session_factory_integrations_and_datab
         accepts_session_factory=False,
         accepts_integrations=False,
         accepts_databases=True,
+        accepts_redis=False,
+    )
+    spec_with_redis = SimpleNamespace(
+        func=lambda **_kw: None,
+        trigger=MagicMock(name="trigger5"),
+        job_id="with-redis",
+        misfire_grace_time=50,
+        max_instances=1,
+        accepts_session_factory=False,
+        accepts_integrations=False,
+        accepts_databases=False,
+        accepts_redis=True,
     )
 
     with (
@@ -137,7 +158,13 @@ async def test_scheduler_lifespan_injects_session_factory_integrations_and_datab
         patch("app.bootstrap.scheduler.databases_lifecycle", capturing_databases_lifecycle),
         patch(
             "app.bootstrap.scheduler.get_registered_cron_jobs",
-            return_value=[spec_with_sf, spec_without_sf, spec_with_integ, spec_with_dbs],
+            return_value=[
+                spec_with_sf,
+                spec_without_sf,
+                spec_with_integ,
+                spec_with_dbs,
+                spec_with_redis,
+            ],
         ),
         patch("app.bootstrap.scheduler.AsyncIOScheduler") as mock_sched_cls,
     ):
@@ -148,7 +175,7 @@ async def test_scheduler_lifespan_injects_session_factory_integrations_and_datab
             assert yielded is ctx
 
     add_job_calls = mock_sched.add_job.call_args_list
-    assert len(add_job_calls) == 4
+    assert len(add_job_calls) == 5
 
     first = add_job_calls[0]
     assert first.args[0] is spec_with_sf.func
@@ -187,6 +214,16 @@ async def test_scheduler_lifespan_injects_session_factory_integrations_and_datab
         "kwargs": {"databases": databases},
         "id": "with-dbs",
         "misfire_grace_time": 40,
+        "max_instances": 1,
+    }
+
+    fifth = add_job_calls[4]
+    assert fifth.args[0] is spec_with_redis.func
+    assert fifth.args[1] is spec_with_redis.trigger
+    assert fifth.kwargs == {
+        "kwargs": {"redis": ctx.redis},
+        "id": "with-redis",
+        "misfire_grace_time": 50,
         "max_instances": 1,
     }
 

@@ -125,30 +125,7 @@
            ...
    ```
 
-   需要外部 client 时，加 `*, integrations: Integrations` 参数（同 `session_factory` 一样由框架按参数名自动注入），内部用 `.get(<Client>)` 取：
-
-   ```python
-   from app.integrations.bundle import Integrations
-   from app.integrations.<provider>.client import FooClient
-
-   @cron_job(CronTrigger(minute="*/5"), job_id="<域>.my_job")
-   async def my_job(*, integrations: Integrations) -> None:
-       client = integrations.get(FooClient)
-       ...
-   ```
-
-   需要业务库时（同 `integrations` 一样按参数名注入），加 `*, databases: Databases` 参数，内部 `.get(<Name>Db)` 取：
-
-   ```python
-   from app.infrastructure.database.business.handle import Databases
-   from app.infrastructure.database.business.<name> import <Name>Db
-
-   @cron_job(CronTrigger(minute="*/5"), job_id="<域>.my_job")
-   async def my_job(*, databases: Databases) -> None:
-       db = databases.get(<Name>Db)
-       async with db.session_factory() as s, s.begin():
-           ...
-   ```
+   其余注入项（`integrations` / `databases` / `redis`）同 `session_factory` 一样按参数名自动注入：`integrations.get(<Client>)` 取外部 client（见"加外部 HTTP 集成"第 4 步）、`databases.get(<Name>Db)` 取业务库（见"接入新业务库"第 3 步）、`redis` 为进程共享客户端。完整清单见下节"handler 可注入参数"。
 
    > Scheduler 默认零装配（`SCHEDULER_CLIENTS = ()`、`SCHEDULER_DATABASES = ()`），`.get(<Client>)` / `.get(<Name>Db)` 会抛 `ClientNotRegisteredError` / `DatabaseNotRegisteredError`；把对应 `*_client_ctx` / `*_db_ctx` 加进 `SCHEDULER_CLIENTS` / `SCHEDULER_DATABASES`（见"加外部 HTTP 集成"第 4 步、"接入新业务库"第 2 步）才能使用。
 
@@ -163,6 +140,36 @@
    ```bash
    uv run python -m app.entrypoints.scheduler
    ```
+
+---
+
+## handler 可注入参数
+
+consumer handler（`@task_consumer`）与 cron job（`@cron_job`）都按参数名自动注入，声明了才传：
+
+| 参数 | consumer | cron | 说明 |
+|---|---|---|---|
+| `session_factory` | ✓ | ✓ | DB 会话工厂 |
+| `integrations` | ✓ | ✓ | 外部 client 聚合，`.get(<Client>)` 取 |
+| `databases` | ✓ | ✓ | 业务库聚合，`.get(<Name>Db)` 取 |
+| `envelope` | ✓ | — | 消息信封（`message_id` / `attempts` / `original_message_id` 等） |
+| `redis` | ✓ | ✓ | 进程共享的 `redis.asyncio.Redis` 客户端 |
+| `attempts` | ✓ | — | 当前执行是第几次尝试（从 1 起） |
+| `max_attempts` | ✓ | — | `RetryPolicy.max_attempts`；无 retry 策略时为 1 |
+
+`attempts` / `max_attempts` 的典型用法是**重试耗尽前业务闭环**：最后一次机会不再 re-raise，直接把业务对象标记失败并推进状态，避免消息进 DLQ 后业务状态悬空：
+
+```python
+@task_consumer("some.event", retry=RetryPolicy(max_attempts=3))
+async def on_event(msg, *, attempts: int, max_attempts: int) -> None:
+    try:
+        ...
+    except TransientError:
+        if attempts >= max_attempts:
+            ...  # 最后一次：业务闭环（标 failed + 推进状态），不再抛
+            return
+        raise  # 未用尽 → 框架按 RetryPolicy 重投
+```
 
 ---
 
@@ -295,8 +302,6 @@ async def on_event(msg, *, databases: Databases) -> None:
     async with db.session_factory() as s, s.begin():
         ...
 ```
-
-> Scheduler cron 完整示例（含装饰器签名）见上文"加定时任务 → 需要业务库时"。
 
 ### 4. 添加环境变量
 

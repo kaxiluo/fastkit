@@ -23,7 +23,11 @@ async def worker_lifespan(broker: RabbitBroker | None = None) -> AsyncGenerator[
         integrations_lifecycle(*WORKER_CLIENTS) as integrations,
         databases_lifecycle(*WORKER_DATABASES) as databases,
     ):
-        await ctx.messaging.start_consumers(integrations=integrations, databases=databases)
+        await ctx.messaging.start_consumers(
+            integrations=integrations,
+            databases=databases,
+            redis=ctx.redis,
+        )
         log.info("worker.started", app_name=ctx.settings.app_name)
         try:
             yield ctx

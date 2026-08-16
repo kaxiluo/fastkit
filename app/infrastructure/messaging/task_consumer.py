@@ -65,6 +65,9 @@ class _ConsumerSpec:
     accepts_envelope: bool = field(init=False, default=False)
     accepts_integrations: bool = field(init=False, default=False)
     accepts_databases: bool = field(init=False, default=False)
+    accepts_redis: bool = field(init=False, default=False)
+    accepts_attempts: bool = field(init=False, default=False)
+    accepts_max_attempts: bool = field(init=False, default=False)
 
     def __post_init__(self):
         self.handler_qualname = self.handler.__qualname__
@@ -80,6 +83,9 @@ class _ConsumerSpec:
         self.accepts_envelope = "envelope" in params
         self.accepts_integrations = "integrations" in params
         self.accepts_databases = "databases" in params
+        self.accepts_redis = "redis" in params
+        self.accepts_attempts = "attempts" in params
+        self.accepts_max_attempts = "max_attempts" in params
 
 
 _PENDING_CONSUMERS: list[_ConsumerSpec] = []
@@ -161,7 +167,7 @@ def _build_wrapped(
     dispatcher: Any,  # RetryDispatcher | None;None 时降级为仅 ack
     timeout: float | None = None,
 ) -> Callable:
-    """返回一个协程:接受 (payload, *, envelope, session_factory, integrations) → TaskResult。
+    """返回一个协程:接受 (payload, *, envelope, session_factory, integrations, databases, redis) → TaskResult。
 
     异常三分支:
       1. handler 成功 → FINISHED
@@ -182,6 +188,7 @@ def _build_wrapped(
         session_factory: Any,
         integrations: Any = None,
         databases: Any = None,
+        redis: Any = None,
     ):
         async def _route_failure(exc: BaseException) -> TaskResult:
             attempts = max(1, int(envelope.get("attempts", 1)))
@@ -265,6 +272,14 @@ def _build_wrapped(
             handler_kwargs["integrations"] = integrations
         if spec.accepts_databases:
             handler_kwargs["databases"] = databases
+        if spec.accepts_redis:
+            handler_kwargs["redis"] = redis
+        if spec.accepts_attempts:
+            handler_kwargs["attempts"] = max(1, int(envelope.get("attempts", 1)))
+        if spec.accepts_max_attempts:
+            handler_kwargs["max_attempts"] = (
+                retry_policy.max_attempts if retry_policy else 1
+            )
 
         try:
             if timeout is None:
