@@ -5,7 +5,6 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.infrastructure.scheduler.registry import (
-    _CronJobSpec,
     clear_registered_cron_jobs,
     cron_job,
     get_registered_cron_jobs,

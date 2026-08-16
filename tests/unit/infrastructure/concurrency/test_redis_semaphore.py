@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -51,9 +52,7 @@ def test_capacity_below_one_rejected() -> None:
 async def test_try_acquire_returns_slot_index_and_forwards_args() -> None:
     sem, acquire, _, _ = _build_sem(acquire_return=2)
     assert await sem._try_acquire("token-x") == 2
-    acquire.assert_awaited_once_with(
-        keys=["test:sem"], args=[2, "token-x", 5]
-    )
+    acquire.assert_awaited_once_with(keys=["test:sem"], args=[2, "token-x", 5])
 
 
 async def test_slot_yields_index_then_releases(monkeypatch) -> None:
@@ -145,9 +144,7 @@ async def test_renew_loop_continues_when_renew_succeeds(monkeypatch) -> None:
         await real_sleep(0)  # 让 task 跑几轮,renew 至少被 await 一次
 
     task.cancel()
-    try:
+    with suppress(asyncio.CancelledError):
         await task
-    except asyncio.CancelledError:
-        pass
 
     assert renew.await_count >= 1

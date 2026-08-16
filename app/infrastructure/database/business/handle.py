@@ -62,7 +62,7 @@ class Databases:
         return list(self._registry.values())
 
 
-def business_db_ctx(
+def business_db_ctx[BusinessDbT: BusinessDb](
     handle_type: type[BusinessDbT],
     settings_type: type[DatabaseSettings],
 ) -> Callable[[], AsyncGenerator[BusinessDbT]]:

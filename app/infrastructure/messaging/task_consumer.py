@@ -277,9 +277,7 @@ def _build_wrapped(
         if spec.accepts_attempts:
             handler_kwargs["attempts"] = max(1, int(envelope.get("attempts", 1)))
         if spec.accepts_max_attempts:
-            handler_kwargs["max_attempts"] = (
-                retry_policy.max_attempts if retry_policy else 1
-            )
+            handler_kwargs["max_attempts"] = retry_policy.max_attempts if retry_policy else 1
 
         try:
             if timeout is None:

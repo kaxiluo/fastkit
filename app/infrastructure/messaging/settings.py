@@ -70,9 +70,7 @@ class MessagingSettings(BaseSettings):
         if self.retry_exchange is None:
             self.retry_exchange = f"{self.app_name}.retry.ex"
         if self.retry_queue is None:
-            self.retry_queue = (
-                f"{self.app_name}.retry.{_format_ttl_suffix(self.retry_ttl_ms)}"
-            )
+            self.retry_queue = f"{self.app_name}.retry.{_format_ttl_suffix(self.retry_ttl_ms)}"
         return self
 
 

@@ -56,15 +56,15 @@ def test_app_error_subclasses_map_to_status(
 
 
 def test_app_error_unknown_subclass_falls_back_to_500() -> None:
-    class _Unknown(AppError):
+    class _UnknownError(AppError):
         code = "unknown"
 
-    resp = _client_with_raiser(_Unknown("x")).get("/")
+    resp = _client_with_raiser(_UnknownError("x")).get("/")
 
     assert resp.status_code == 500
     body = resp.json()
     assert body["type"] == "unknown"
-    assert body["title"] == "_Unknown"
+    assert body["title"] == "_UnknownError"
 
 
 def test_unexpected_exception_returns_500() -> None:

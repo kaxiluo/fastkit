@@ -30,9 +30,7 @@ def _strategy(hit_values, *, reset_time: float = 1000.0) -> AsyncMock:
     """hit 按序返回 hit_values;get_window_stats 返回带 reset_time 的对象。"""
     strategy = AsyncMock(spec=MovingWindowRateLimiter)
     strategy.hit = AsyncMock(side_effect=list(hit_values))
-    strategy.get_window_stats = AsyncMock(
-        return_value=SimpleNamespace(reset_time=reset_time)
-    )
+    strategy.get_window_stats = AsyncMock(return_value=SimpleNamespace(reset_time=reset_time))
     return strategy
 
 
@@ -109,9 +107,7 @@ async def test_acquire_timeout_returns_false(monkeypatch) -> None:
     # hit 持续 False,确保不会因 hit=True 提前结束
     strategy = AsyncMock(spec=MovingWindowRateLimiter)
     strategy.hit = AsyncMock(return_value=False)
-    strategy.get_window_stats = AsyncMock(
-        return_value=SimpleNamespace(reset_time=1000.0)
-    )
+    strategy.get_window_stats = AsyncMock(return_value=SimpleNamespace(reset_time=1000.0))
     rl = _limiter(strategy)
     item = RateLimitItemPerSecond(1, 1)
 

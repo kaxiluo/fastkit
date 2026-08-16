@@ -18,9 +18,7 @@ async def _truncate(db_engine):
     yield
 
 
-async def _insert_published(
-    session_factory: async_sessionmaker, *, published_at_expr: str
-) -> int:
+async def _insert_published(session_factory: async_sessionmaker, *, published_at_expr: str) -> int:
     """插入 status='published' 行，published_at_expr 为 SQL 表达式，如 'NOW() - INTERVAL ''31 days'''。"""
     async with session_factory() as s, s.begin():
         row = (
@@ -38,9 +36,7 @@ async def _insert_published(
     return row.id
 
 
-async def _insert_dead(
-    session_factory: async_sessionmaker, *, dead_at_expr: str
-) -> int:
+async def _insert_dead(session_factory: async_sessionmaker, *, dead_at_expr: str) -> int:
     """插入 status='dead' 行，dead_at_expr 为 SQL 表达式，如 'NOW() - INTERVAL ''31 days'''。"""
     async with session_factory() as s, s.begin():
         row = (

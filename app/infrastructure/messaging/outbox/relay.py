@@ -67,7 +67,9 @@ async def _drain_once(
                     headers=row["headers"],
                 )
                 await session.execute(
-                    text("UPDATE fastkit_outbox SET status = 'published', published_at = NOW() WHERE id = :id"),
+                    text(
+                        "UPDATE fastkit_outbox SET status = 'published', published_at = NOW() WHERE id = :id"
+                    ),
                     {"id": row["id"]},
                 )
             except Exception as e:

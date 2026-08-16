@@ -43,9 +43,7 @@ def _patch_settings(
     monkeypatch.setattr(
         "app.bootstrap.lifecycle.get_database_settings", lambda: test_database_settings
     )
-    monkeypatch.setattr(
-        "app.bootstrap.lifecycle.get_redis_settings", lambda: test_redis_settings
-    )
+    monkeypatch.setattr("app.bootstrap.lifecycle.get_redis_settings", lambda: test_redis_settings)
     monkeypatch.setattr(
         "app.bootstrap.lifecycle.get_messaging_settings", lambda: test_messaging_settings
     )

@@ -128,7 +128,9 @@ async def broker(
 
 
 @pytest.fixture
-def fast_retry_settings(test_messaging_settings: MessagingSettings, monkeypatch) -> MessagingSettings:
+def fast_retry_settings(
+    test_messaging_settings: MessagingSettings, monkeypatch
+) -> MessagingSettings:
     """集成测试专用:TTL 500ms 加速 retry 回投。"""
     monkeypatch.setattr(test_messaging_settings, "retry_ttl_ms", 500)
     monkeypatch.setattr(
