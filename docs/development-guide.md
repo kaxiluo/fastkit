@@ -224,6 +224,18 @@ async def on_event(msg, *, attempts: int, max_attempts: int) -> None:
 
 ---
 
+## 启用限流器
+
+骨架自带的 `RateLimiter`（`allow()` 超限即拒 / `acquire()` 满了就等，语义见 `app/infrastructure/ratelimit/limiter.py`）默认不装配。把 `rate_limiter_ctx` 加进需要它的进程 `*_CLIENTS`，机制同外部集成 client（借道 integrations 通道、列入即读 settings、未列入零配置），handler 里 `integrations.get(RateLimiter)` 取用：
+
+```python
+WORKER_CLIENTS = (..., rate_limiter_ctx)
+```
+
+> 连接池惰性建连：Redis 不可达不在启动期暴露，而在首次限流调用时。
+
+---
+
 ## 接入新业务库
 
 接入一个新业务库 = 一个小文件（3 个声明 + 1 行工厂）+ 往进程清单加一项。**主库（`DATABASE_URL`）不动**，业务方按需接入 N 个额外业务库（同构 PG 或异构 MySQL）。
