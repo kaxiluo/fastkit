@@ -66,6 +66,7 @@ async def test_worker_lifespan_starts_consumers_then_stops_messaging() -> None:
         integrations=integrations,
         databases=ANY,
         redis=ctx.redis,
+        start_broker=False,
     )
     messaging.stop.assert_awaited_once_with()
 

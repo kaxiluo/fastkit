@@ -64,8 +64,15 @@ class Messaging:
         integrations: object = None,
         databases: object = None,
         redis: object = None,
+        *,
+        start_broker: bool = True,
     ) -> None:
-        """Worker 进程:声明 DLQ + retry 拓扑 → 绑定 consumer → start broker → 起 relay。"""
+        """Worker 进程:声明 DLQ + retry 拓扑 → 绑定 consumer → start broker → 起 relay。
+
+        start_broker=False 供 ASGI 组合路径用:AsgiFastStream 自身的 _start_broker
+        也会 start broker,engine 再 start 会双 basic_consume,RabbitMQ 的
+        per-consumer prefetch 语义使实际并发翻倍。
+        """
         self._integrations = integrations
         self._databases = databases
         self._redis = redis
@@ -74,7 +81,8 @@ class Messaging:
         await declare_retry(self._broker, self._settings)
         self._dispatcher = RetryDispatcher(self._broker, self._settings)
         self._bind_pending_consumers()
-        await self._broker.start()
+        if start_broker:
+            await self._broker.start()
         self._relay_task = asyncio.create_task(
             relay_loop(self._session_factory, self._broker, self._settings, self._shutdown),
             name="messaging.relay_loop",

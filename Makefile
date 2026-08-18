@@ -1,8 +1,8 @@
-.PHONY: help install migrate dev-http dev-worker dev-scheduler \
+.PHONY: help install migrate dev-http dev-worker dev-worker-2 dev-scheduler \
         test test-integration test-all lint format health
 
 help:  ## 列出所有可用目标
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36mmake %-18s\033[0m %s\n", $$1, $$2}'
 
 install:  ## 安装依赖(uv sync)
@@ -16,6 +16,9 @@ dev-http:  ## 启 HTTP API 进程(:8000, --reload)
 
 dev-worker:  ## 启 Worker 进程(:8001)
 	uv run uvicorn app.entrypoints.worker:app --port 8001
+
+dev-worker-2:  ## 启 Worker 进程(:8001,--workers 2 双进程)
+	uv run uvicorn app.entrypoints.worker:app --port 8001 --workers 2
 
 dev-scheduler:  ## 启 Scheduler 进程
 	uv run python -m app.entrypoints.scheduler

@@ -27,6 +27,7 @@ async def worker_lifespan(broker: RabbitBroker | None = None) -> AsyncGenerator[
             integrations=integrations,
             databases=databases,
             redis=ctx.redis,
+            start_broker=False,  # AsgiFastStream._start_broker 统一 start,engine 再 start 会双 consume
         )
         log.info("worker.started", app_name=ctx.settings.app_name)
         try:
