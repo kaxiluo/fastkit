@@ -20,8 +20,8 @@ dev-worker:  ## 启 Worker 进程(:8001)
 dev-worker-2:  ## 启 Worker 进程(:8001,--workers 2 双进程)
 	uv run uvicorn app.entrypoints.worker:app --port 8001 --workers 2
 
-dev-scheduler:  ## 启 Scheduler 进程
-	uv run python -m app.entrypoints.scheduler
+dev-scheduler:  ## 启 Scheduler 进程(:8002)
+	uv run uvicorn app.entrypoints.scheduler:app --port 8002
 
 test:  ## 跑 unit 测试(默认,零基础设施依赖)
 	uv run pytest

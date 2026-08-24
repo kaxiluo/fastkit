@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | HTTP API | `app.entrypoints.http.app:app` | 对外 REST,跑 FastAPI + dishka |
 | Worker | `app.entrypoints.worker:app` | RabbitMQ consume + outbox relay,ASGI 暴露 `/health` 与 `/asyncapi` |
-| Scheduler | `app.entrypoints.scheduler` | APScheduler 定时任务进程(目前跑 outbox/inbox retention) |
+| Scheduler | `app.entrypoints.scheduler:app` | APScheduler 定时任务进程,ASGI 暴露 `/health`(目前跑 outbox/inbox retention) |
 
 ## 前置依赖
 
@@ -33,7 +33,7 @@ uv run alembic upgrade head
 make dev-http        # = uv run uvicorn app.entrypoints.http.app:app   --reload --port 8000
 make dev-worker      # = uv run uvicorn app.entrypoints.worker:app     --port 8001
 make dev-worker-2    # 同上,--workers 2(共享 :8001)
-make dev-scheduler   # = uv run python -m app.entrypoints.scheduler
+make dev-scheduler   # = uv run uvicorn app.entrypoints.scheduler:app --port 8002
 # 生产参数(Dockerfile / 编排用):
 # uvicorn app.entrypoints.http.app:app   --host 0.0.0.0 --port 8000 --workers 4 --proxy-headers --forwarded-allow-ips '*' --no-access-log
 # uvicorn app.entrypoints.worker:app     --host 0.0.0.0 --port 8001
@@ -43,6 +43,7 @@ make dev-scheduler   # = uv run python -m app.entrypoints.scheduler
 - HTTP: `curl -s localhost:8000/health` → `{"status":"ok"}`
 - 示例业务接口: `POST localhost:8000/api/v1/example/widgets`、`GET localhost:8000/api/v1/example/widgets/{id}`
 - Worker AsyncAPI 文档: 浏览器打开 `http://localhost:8001/asyncapi`
+- Scheduler: `curl -s localhost:8002/health` → `{"status":"ok"}`
 
 ---
 
@@ -71,10 +72,11 @@ uv run uvicorn app.entrypoints.worker:app --port 8001
 ## Scheduler 进程
 
 ```bash
-uv run python -m app.entrypoints.scheduler
+uv run uvicorn app.entrypoints.scheduler:app --port 8002
 ```
 
 - **职责**: APScheduler `AsyncIOScheduler` 定时任务进程
+- **健康检查**: `GET /health` — 进程存活,不查依赖;scheduler 允许零装配 DB/Redis 启动,无统一就绪标准,故不设 `/ready`
 - **当前 job**: outbox/inbox retention(见 `app/bootstrap/scheduler.py`)
 - **多副本**:必须单副本;`AsyncIOScheduler` 无分布式锁
 
@@ -102,7 +104,7 @@ app/
 ├── entrypoints/        # 三进程入口 + HTTP 子路由
 │   ├── http/           # FastAPI app + health + router + exception_handlers
 │   ├── worker.py       # FastStream AsgiFastStream
-│   └── scheduler.py    # APScheduler 入口
+│   └── scheduler.py    # ASGI app:APScheduler lifespan + /health
 ├── bootstrap/          # 各进程 lifespan + dishka container
 ├── config/             # Settings(pydantic-settings)
 ├── infrastructure/     # database(主库 + business/ 多业务库) / redis / messaging(outbox/inbox/dlq/retry) / observability / ratelimit / concurrency

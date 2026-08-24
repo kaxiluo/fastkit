@@ -119,7 +119,6 @@ source = ["app"]
 branch = true
 omit = [
     "app/entrypoints/worker.py",
-    "app/entrypoints/scheduler.py",
     "app/infrastructure/messaging/migrations/*",
 ]
 

@@ -138,7 +138,7 @@
 3. 验证（日志出现 `scheduler.started` 且无报错即可）：
 
    ```bash
-   uv run python -m app.entrypoints.scheduler
+   uv run uvicorn app.entrypoints.scheduler:app --port 8002
    ```
 
 ---
