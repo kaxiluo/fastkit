@@ -12,6 +12,7 @@ def build_redis(settings: RedisSettings) -> Redis:
         health_check_interval=settings.health_check_interval,
         socket_keepalive=True,
         decode_responses=False,
+        protocol=2,
     )
 
 
