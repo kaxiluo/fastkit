@@ -1,0 +1,25 @@
+FROM python:3.13-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_PYTHON_DOWNLOADS=never
+
+RUN pip install --no-cache-dir uv
+
+RUN useradd --system --uid 1000 --no-create-home app \
+    && mkdir /app && chown app:app /app
+USER app
+WORKDIR /app
+
+COPY --chown=1000:1000 pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-cache
+
+COPY --chown=1000:1000 . ./
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+# uvicorn 原生识别 UVICORN_* 环境变量;多进程吃满单机核数,跨节点仍走副本
+ENV UVICORN_WORKERS=2
+
+EXPOSE 8000
+CMD ["uvicorn", "app.entrypoints.http.app:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*", "--no-access-log"]

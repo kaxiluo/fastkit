@@ -1,0 +1,29 @@
+# 构建产物与缓存
+.git
+.venv
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# 本地开发与文档
+tests/
+docs/
+Makefile
+CLAUDE.md
+.claude
+.idea
+.vscode
+
+# 构建自身的元数据
+.gitignore
+.dockerignore
+Dockerfile.*
+
+# 密钥
+.env
+.env.*

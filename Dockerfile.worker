@@ -1,0 +1,26 @@
+FROM python:3.13-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_PYTHON_DOWNLOADS=never
+
+RUN pip install --no-cache-dir uv
+
+RUN useradd --system --uid 1000 --no-create-home app \
+    && mkdir /app && chown app:app /app
+USER app
+WORKDIR /app
+
+COPY --chown=1000:1000 pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-cache
+
+COPY --chown=1000:1000 . ./
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+# 多进程 = N 个独立 consumer + N 份 outbox relay(SKIP LOCKED 原子占位,不重复发布;
+# 跨进程无发布顺序保证);跨节点扩容走副本
+ENV UVICORN_WORKERS=2
+
+EXPOSE 8001
+CMD ["uvicorn", "app.entrypoints.worker:app", "--host", "0.0.0.0", "--port", "8001"]

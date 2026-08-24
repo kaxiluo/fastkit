@@ -34,9 +34,7 @@ make dev-http        # = uv run uvicorn app.entrypoints.http.app:app   --reload 
 make dev-worker      # = uv run uvicorn app.entrypoints.worker:app     --port 8001
 make dev-worker-2    # 同上,--workers 2(共享 :8001)
 make dev-scheduler   # = uv run uvicorn app.entrypoints.scheduler:app --port 8002
-# 生产参数(Dockerfile / 编排用):
-# uvicorn app.entrypoints.http.app:app   --host 0.0.0.0 --port 8000 --workers 4 --proxy-headers --forwarded-allow-ips '*' --no-access-log
-# uvicorn app.entrypoints.worker:app     --host 0.0.0.0 --port 8001
+# 生产参数见「Docker 镜像」一节
 ```
 
 跑通后:
@@ -67,7 +65,7 @@ uv run uvicorn app.entrypoints.worker:app --port 8001
 - **健康检查**: `GET /health` — 基于 `broker.ping(timeout=5s)`,broker 不通则返回非 200
 - **AsyncAPI 文档**: 非 prod 挂载 `/asyncapi`(含 Try It Out)
 - **关键环境变量**: `BROKER_URL`、`MESSAGING_OUTBOX_*`(轮询间隔/最大重试/批量大小,均有默认)、`MESSAGING_CONSUMER_TIMEOUT_SECONDS`(handler 超时秒数,默认 180;per-consumer 可用 `@task_consumer(timeout=...)` 覆盖)
-- **`uvicorn --workers`**:不建议,outbox relay 的 `LISTEN` 监听会被复制 N 份;扩容走容器多副本
+- **`uvicorn --workers`**:多进程与多副本在 relay 侧等价(SKIP LOCKED 不重复发布;跨实例无发布顺序)
 
 ## Scheduler 进程
 
@@ -79,6 +77,23 @@ uv run uvicorn app.entrypoints.scheduler:app --port 8002
 - **健康检查**: `GET /health` — 进程存活,不查依赖;scheduler 允许零装配 DB/Redis 启动,无统一就绪标准,故不设 `/ready`
 - **当前 job**: outbox/inbox retention(见 `app/bootstrap/scheduler.py`)
 - **多副本**:必须单副本;`AsyncIOScheduler` 无分布式锁
+
+---
+
+## Docker 镜像
+
+三个进程各一个 Dockerfile,仅 EXPOSE/CMD 不同(http 的 CMD 额外带 `--proxy-headers` 等反代参数):
+
+```bash
+docker build -f Dockerfile.http      -t fastkit-http:tag .
+docker build -f Dockerfile.worker    -t fastkit-worker:tag .
+docker build -f Dockerfile.scheduler -t fastkit-scheduler:tag .
+```
+
+- **迁移**:镜像内含 `alembic`,任一镜像跑 `alembic upgrade head`(连接串走环境变量)
+- **扩容**:http / worker 镜像默认多进程,`UVICORN_WORKERS` 可调;跨节点走副本
+- **探针**:http `/health` + `/ready`;worker `/health`(:8001);scheduler `/health`(:8002)
+- **scheduler**:单副本 + `strategy: Recreate`(无分布式锁,滚动瞬间会双调度)
 
 ---
 
