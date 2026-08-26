@@ -48,6 +48,7 @@ class AppSettings(BaseSettings):
       MESSAGING_RETRY_QUEUE                   缺省 {app_name}.retry.{ttl}
       MESSAGING_SHUTDOWN_GRACE_SECONDS        关停宽限期;消费者 drain 超时则放弃未确认消息
       MESSAGING_CONSUMER_TIMEOUT_SECONDS      消费侧 handler 超时秒数;超时取消协程走 retry/DLQ
+      WORKER_REPLICAS                         worker 副本数(须与 uvicorn --workers 一致);摊薄每副本 prefetch
 
       注:消费侧 max_attempts 不在全局 settings,每个 @task_consumer 用 RetryPolicy(...) 显式声明
 

@@ -17,7 +17,11 @@ async def declare_dlq(broker: RabbitBroker, settings: MessagingSettings) -> None
         type=ExchangeType.FANOUT,
         durable=True,
     )
-    dlq = RabbitQueue(settings.dlq_queue, durable=True)
+    dlq = RabbitQueue(
+        settings.dlq_queue,
+        durable=True,
+        arguments={"x-queue-type": "classic"},
+    )
     robust_dlx = await broker.declare_exchange(dlx)
     robust_dlq = await broker.declare_queue(dlq)
     # fanout DLX:queue 直接 bind,routing_key 无效但 API 要求

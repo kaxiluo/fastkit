@@ -59,6 +59,7 @@ async def test_http_create_widget_flows_through_consumer_and_finishes(
     session_factory,
     broker,
     test_messaging_settings,
+    redis_client,
 ):
     from app.entrypoints.http.app import app as api_app
     from app.infrastructure.messaging.task_consumer import get_pending_consumers
@@ -76,7 +77,7 @@ async def test_http_create_widget_flows_through_consumer_and_finishes(
         session_factory=session_factory,
         settings=test_messaging_settings,
     )
-    await messaging.start_consumers()
+    await messaging.start_consumers(redis=redis_client)
 
     try:
         async with LifespanManager(api_app):

@@ -18,7 +18,9 @@ async def _truncate(db_engine):
     yield
 
 
-async def test_handler_retries_and_succeeds(broker, session_factory, fast_retry_settings):
+async def test_handler_retries_and_succeeds(
+    broker, session_factory, fast_retry_settings, redis_client
+):
     from app.infrastructure.messaging.engine import Messaging
     from app.infrastructure.messaging.retry_policy import RetryPolicy
     from app.infrastructure.messaging.task_consumer import (
@@ -47,7 +49,7 @@ async def test_handler_retries_and_succeeds(broker, session_factory, fast_retry_
         settings=fast_retry_settings,
     )
     try:
-        await msg.start_consumers()
+        await msg.start_consumers(redis=redis_client)
 
         # 直接 publish 到业务 queue(绕开 outbox,专注 consumer 重试路径)
         await broker.publish(

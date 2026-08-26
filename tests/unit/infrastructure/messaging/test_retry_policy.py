@@ -46,3 +46,14 @@ def test_delay_field_removed():
     x-message-ttl 控制),确保不会被无意加回。"""
     sig = inspect.signature(RetryPolicy)
     assert "delay" not in sig.parameters
+
+
+def test_retry_policy_defaults_no_overload_exemptions():
+    policy = RetryPolicy()
+    assert policy.overload_exceptions == ()
+    assert policy.overload_retry_limit == 100
+
+
+def test_retry_policy_rejects_overload_limit_below_one():
+    with pytest.raises(ValueError, match="overload_retry_limit"):
+        RetryPolicy(overload_retry_limit=0)

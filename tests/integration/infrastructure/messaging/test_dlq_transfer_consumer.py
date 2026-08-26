@@ -26,7 +26,7 @@ async def _truncate(db_engine, broker, test_messaging_settings):
 
 
 async def test_handler_exhausts_retries_and_dead_letters(
-    broker, session_factory, fast_retry_settings
+    broker, session_factory, fast_retry_settings, redis_client
 ):
     from app.infrastructure.messaging.engine import Messaging
     from app.infrastructure.messaging.retry_policy import RetryPolicy
@@ -54,7 +54,7 @@ async def test_handler_exhausts_retries_and_dead_letters(
         settings=fast_retry_settings,
     )
     try:
-        await msg.start_consumers()
+        await msg.start_consumers(redis=redis_client)
 
         await broker.publish(
             {"n": 1},

@@ -125,7 +125,7 @@
            ...
    ```
 
-   其余注入项（`integrations` / `databases` / `redis`）同 `session_factory` 一样按参数名自动注入：`integrations.get(<Client>)` 取外部 client（见"加外部 HTTP 集成"第 4 步）、`databases.get(<Name>Db)` 取业务库（见"接入新业务库"第 3 步）、`redis` 为进程共享客户端。完整清单见下节"handler 可注入参数"。
+   其余注入项（`integrations` / `databases` / `redis`）同 `session_factory` 一样按参数名自动注入：`integrations.get(<Client>)` 取外部 client（见"加外部 HTTP 集成"第 4 步）、`databases.get(<Name>Db)` 取业务库（见"接入新业务库"第 3 步）、`redis` 为进程共享客户端。完整清单见下节「worker 消费者」的注入表。
 
    > Scheduler 默认零装配（`SCHEDULER_CLIENTS = ()`、`SCHEDULER_DATABASES = ()`），`.get(<Client>)` / `.get(<Name>Db)` 会抛 `ClientNotRegisteredError` / `DatabaseNotRegisteredError`；把对应 `*_client_ctx` / `*_db_ctx` 加进 `SCHEDULER_CLIENTS` / `SCHEDULER_DATABASES`（见"加外部 HTTP 集成"第 4 步、"接入新业务库"第 2 步）才能使用。
 
@@ -143,19 +143,34 @@
 
 ---
 
-## handler 可注入参数
+## worker 消费者（@task_consumer）
 
-consumer handler（`@task_consumer`）与 cron job（`@cron_job`）都按参数名自动注入，声明了才传：
+用 `@task_consumer("routing.key", ...)` 声明一个消费者，处理业务队列的消息。
 
-| 参数 | consumer | cron | 说明 |
-|---|---|---|---|
-| `session_factory` | ✓ | ✓ | DB 会话工厂 |
-| `integrations` | ✓ | ✓ | 外部 client 聚合，`.get(<Client>)` 取 |
-| `databases` | ✓ | ✓ | 业务库聚合，`.get(<Name>Db)` 取 |
-| `envelope` | ✓ | — | 消息信封（`message_id` / `attempts` / `original_message_id` 等） |
-| `redis` | ✓ | ✓ | 进程共享的 `redis.asyncio.Redis` 客户端 |
-| `attempts` | ✓ | — | 当前执行是第几次尝试（从 1 起） |
-| `max_attempts` | ✓ | — | `RetryPolicy.max_attempts`；无 retry 策略时为 1 |
+| 参数 | 语义 |
+|---|---|
+| `routing_key` | 必填。消息路由键（即业务队列名） |
+| `concurrency` | **全集群全局并发上限**（默认 1）。与副本数解耦：2 副本、10 副本都是 N。提高吞吐调大它；加副本只是高可用 + 分摊负载，不放大并发 |
+| `timeout` | handler 执行超时秒数。不写跟随全局 `MESSAGING_CONSUMER_TIMEOUT_SECONDS`（默认 180），`None` 关闭。超时走业务失败（烧 attempts） |
+| `wait_timeout` | 抢并发配额的等待超时。不写跟随 `timeout` 解析值；显式 `None` 无限等。超时 → 消息回主队列排队，不烧 attempts、不进 DLQ |
+| `retry` | `False`（默认，失败记日志后丢弃）/ `True`（`RetryPolicy()` 默认 max_attempts=3）/ `RetryPolicy(...)` |
+| `inbox` | 是否启用幂等去重（默认 True） |
+
+> **长任务参数配比**：`timeout` 按任务时长上限 ~2 倍取；`wait_timeout` 设为 ≥ 副本数×任务时长上限。例：任务 ≤60s、部署 4 副本 → `timeout=120, wait_timeout=300`。
+
+handler 按参数名自动注入依赖（声明了才传）：
+
+| 参数 | 说明 |
+|---|---|
+| `session_factory` | DB 会话工厂 |
+| `envelope` | 消息信封（`message_id` / `attempts` / `original_message_id` 等） |
+| `redis` | 进程共享的 `redis.asyncio.Redis` 客户端 |
+| `integrations` | 外部 client 聚合，`.get(<Client>)` 取 |
+| `databases` | 业务库聚合，`.get(<Name>Db)` 取 |
+| `attempts` | 当前是第几次尝试（从 1 起） |
+| `max_attempts` | `RetryPolicy.max_attempts`；无 retry 策略时为 1 |
+
+> `integrations` / `databases` / `redis` 对 cron job（`@cron_job`）同样按参数名注入，见「加定时任务」。
 
 `attempts` / `max_attempts` 的典型用法是**重试耗尽前业务闭环**：最后一次机会不再 re-raise，直接把业务对象标记失败并推进状态，避免消息进 DLQ 后业务状态悬空：
 
@@ -170,6 +185,13 @@ async def on_event(msg, *, attempts: int, max_attempts: int) -> None:
             return
         raise  # 未用尽 → 框架按 RetryPolicy 重投
 ```
+
+### 重试 / 过载 / 拥堵语义
+
+- 普通失败按 `RetryPolicy` 重投，`attempts` 递增；达 `max_attempts` 进 DLQ。
+- **外部过载**（上游限流 429 类）：用 `overload_exceptions=(Some429Error,)` 声明，命中重投不烧 attempts，独立计数达上限（默认 100）回落常规重试。
+- **拥堵 = 排队**：并发配额满、等待超时的消息回主队列排尾，不烧 attempts、永不因拥堵进 DLQ。
+- **Redis 故障**：worker 启动时探活失败会拒绝启动；运行期消息不会丢失，恢复后继续处理。
 
 ---
 

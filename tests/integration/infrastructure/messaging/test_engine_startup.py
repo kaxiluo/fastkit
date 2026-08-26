@@ -32,7 +32,7 @@ async def _consumer_tags_settled(messaging_settings, queue: str) -> list[str]:
 
 
 async def test_start_consumers_declares_retry_topology(
-    broker, session_factory, test_messaging_settings
+    broker, session_factory, test_messaging_settings, redis_client
 ):
     """start_consumers 后,retry queue 必须存在(passive declare 不抛即真存在)。"""
     from app.infrastructure.messaging.engine import Messaging
@@ -50,7 +50,7 @@ async def test_start_consumers_declares_retry_topology(
         settings=test_messaging_settings,
     )
     try:
-        await msg.start_consumers()
+        await msg.start_consumers(redis=redis_client)
         # passive=True:queue 必须已存在,否则 404 CHANNEL_ERROR。这真正验证 engine 声明了拓扑
         q = await broker._channel.declare_queue(
             test_messaging_settings.retry_queue,
@@ -72,7 +72,7 @@ async def test_start_consumers_declares_retry_topology(
 
 
 async def test_start_consumers_composed_with_broker_start_keeps_single_consumer(
-    broker, session_factory, test_messaging_settings
+    broker, session_factory, test_messaging_settings, redis_client
 ):
     """ASGI 组合路径(engine 准备 + AsgiFastStream 的 _start_broker)下每队列恰 1 个 consumer。
 
@@ -94,7 +94,7 @@ async def test_start_consumers_composed_with_broker_start_keeps_single_consumer(
         settings=test_messaging_settings,
     )
     try:
-        await msg.start_consumers(start_broker=False)
+        await msg.start_consumers(redis=redis_client, start_broker=False)
         await broker.start()  # AsgiFastStream._start_broker 的等价动作
         tags = await _consumer_tags_settled(test_messaging_settings, "test.smoke.single_consumer")
         assert len(tags) == 1

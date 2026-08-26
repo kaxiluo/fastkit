@@ -31,6 +31,7 @@ async def declare_retry(broker: RabbitBroker, settings: MessagingSettings) -> No
             "x-dead-letter-exchange": "",
             # 不设 x-dead-letter-routing-key → 消息保留原 routing_key,
             # dead-letter 后经 default exchange 回投到原业务 queue
+            "x-queue-type": "classic",
         },
     )
     robust_ex = await broker.declare_exchange(retry_ex)

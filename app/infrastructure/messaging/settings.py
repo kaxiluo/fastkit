@@ -34,6 +34,10 @@ class MessagingSettings(BaseSettings):
     broker_url: SecretStr = Field(
         validation_alias=AliasChoices("BROKER_URL", "MESSAGING_BROKER_URL", "broker_url"),
     )
+    # worker 副本数(绕过 MESSAGING_ 前缀);人为维护,须与 uvicorn --workers 起
+    # 进程数一致。用于把 per-replica prefetch 从 concurrency 摊薄到
+    # ceil(concurrency/replica_count),减少闸外排队轮询。
+    replica_count: int = Field(default=1, validation_alias="WORKER_REPLICAS", ge=1)
 
     # outbox 可靠投递
     # 兜底轮询间隔;NOTIFY 是主路径,此值仅决定漏收 NOTIFY 的最大补偿延迟

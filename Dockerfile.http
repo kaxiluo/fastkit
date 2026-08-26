@@ -18,8 +18,6 @@ COPY --chown=1000:1000 . ./
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-# uvicorn 原生识别 UVICORN_* 环境变量;多进程吃满单机核数,跨节点仍走副本
-ENV UVICORN_WORKERS=2
-
+# 多进程吃满单机核数,跨节点仍走副本
 EXPOSE 8000
-CMD ["uvicorn", "app.entrypoints.http.app:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*", "--no-access-log"]
+CMD ["uvicorn", "app.entrypoints.http.app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--proxy-headers", "--forwarded-allow-ips", "*", "--no-access-log"]

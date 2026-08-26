@@ -18,7 +18,7 @@ dev-worker:  ## 启 Worker 进程(:8001)
 	uv run uvicorn app.entrypoints.worker:app --port 8001
 
 dev-worker-2:  ## 启 Worker 进程(:8001,--workers 2 双进程)
-	uv run uvicorn app.entrypoints.worker:app --port 8001 --workers 2
+	WORKER_REPLICAS=2 uv run uvicorn app.entrypoints.worker:app --port 8001 --workers 2
 
 dev-scheduler:  ## 启 Scheduler 进程(:8002)
 	uv run uvicorn app.entrypoints.scheduler:app --port 8002

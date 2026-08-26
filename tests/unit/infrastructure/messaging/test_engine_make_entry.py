@@ -16,7 +16,8 @@ async def test_make_entry_forwards_all_injected_kwargs():
     redis = object()
 
     entry = _make_entry(wrapped, session_factory, integrations, databases, redis)
-    await entry({"v": 1}, SimpleNamespace(headers={}))
+    msg = SimpleNamespace(headers={}, nack=AsyncMock())
+    await entry({"v": 1}, msg)
 
     wrapped.assert_awaited_once()
     _args, kwargs = wrapped.await_args
@@ -24,3 +25,4 @@ async def test_make_entry_forwards_all_injected_kwargs():
     assert kwargs["integrations"] is integrations
     assert kwargs["databases"] is databases
     assert kwargs["redis"] is redis
+    assert kwargs["nack"] is msg.nack

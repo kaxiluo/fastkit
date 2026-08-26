@@ -47,10 +47,25 @@ class _FakeDispatcher:
         raise AssertionError("不应走到 republish")
 
 
+class _FakeScript:
+    async def __call__(self, *, keys, args):
+        return 1
+
+
+class _FakeRedis:
+    def register_script(self, script: str):
+        return _FakeScript()
+
+
 def _make_messaging(settings: MessagingSettings) -> Messaging:
     m = Messaging(broker=_FakeBroker(), session_factory=object(), settings=settings)  # type: ignore[arg-type]
     m._dispatcher = _FakeDispatcher()  # type: ignore[attr-defined]
+    m._redis = _FakeRedis()  # type: ignore[assignment]
     return m
+
+
+async def _noop_nack(**kwargs) -> None:
+    pass
 
 
 async def test_unset_binds_global_default_timeout():
@@ -69,6 +84,7 @@ async def test_unset_binds_global_default_timeout():
         {"a": 1},
         envelope={"message_id": "m1", "routing_key": "t.bind.default", "attempts": 1},
         session_factory=None,
+        nack=_noop_nack,
     )
     assert len(m._dispatcher.dead_letter_calls) == 1  # type: ignore[attr-defined]
     assert m._dispatcher.dead_letter_calls[0]["envelope"]["failure"]["type"].endswith("TaskTimeout")  # type: ignore[attr-defined]
@@ -91,5 +107,6 @@ async def test_explicit_override_beats_global_default():
         {"a": 1},
         envelope={"message_id": "m1", "routing_key": "t.bind.override", "attempts": 1},
         session_factory=None,
+        nack=_noop_nack,
     )
     assert len(m._dispatcher.dead_letter_calls) == 1  # type: ignore[attr-defined]

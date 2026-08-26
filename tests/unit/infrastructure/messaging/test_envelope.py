@@ -58,6 +58,8 @@ def test_parse_envelope_preserves_all_known_fields():
         "published_at": now,
         "routing_key": "x.y",
         "attempts": 1,
+        "overload_retries": 0,
+        "original_message_id": "id-0",
         "failure": None,
     }
     env = parse_envelope(full)
@@ -91,6 +93,19 @@ def test_parse_envelope_defaults_attempts_and_failure_for_old_messages():
     env = parse_envelope(old_headers)
     assert env["attempts"] == 1
     assert env["failure"] is None
+
+
+def test_parse_envelope_defaults_overload_and_original_message_id_for_old_messages():
+    old_headers = {
+        "message_id": "abc",
+        "message_version": 1,
+        "producer": "fastkit",
+        "published_at": "2026-07-27T10:00:00+00:00",
+        "routing_key": "test.q",
+    }
+    env = parse_envelope(old_headers)
+    assert env["overload_retries"] == 0
+    assert env["original_message_id"] == ""
 
 
 def test_parse_envelope_roundtrip_with_failure():

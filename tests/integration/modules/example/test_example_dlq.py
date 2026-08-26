@@ -59,6 +59,7 @@ async def test_fail_until_attempt_99_goes_to_dlq_after_3_tries(
     session_factory,
     broker,
     fast_retry_settings,
+    redis_client,
 ):
     from app.entrypoints.http.app import app as api_app
     from app.modules.example import (  # noqa: F401
@@ -71,7 +72,7 @@ async def test_fail_until_attempt_99_goes_to_dlq_after_3_tries(
         session_factory=session_factory,
         settings=fast_retry_settings,
     )
-    await messaging.start_consumers()
+    await messaging.start_consumers(redis=redis_client)
 
     try:
         async with LifespanManager(api_app):

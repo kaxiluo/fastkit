@@ -49,9 +49,9 @@ def test_capacity_below_one_rejected() -> None:
         RedisSemaphore(fake_redis, key_prefix="x", capacity=0, lease_seconds=1, poll_interval=0.01)
 
 
-async def test_try_acquire_returns_slot_index_and_forwards_args() -> None:
+async def testtry_acquire_returns_slot_index_and_forwards_args() -> None:
     sem, acquire, _, _ = _build_sem(acquire_return=2)
-    assert await sem._try_acquire("token-x") == 2
+    assert await sem.try_acquire("token-x") == 2
     acquire.assert_awaited_once_with(keys=["test:sem"], args=[2, "token-x", 5])
 
 

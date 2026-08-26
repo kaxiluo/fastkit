@@ -18,7 +18,9 @@ async def _truncate(db_engine):
     yield
 
 
-async def test_concurrency_caps_inflight_at_two(broker, session_factory, test_messaging_settings):
+async def test_concurrency_caps_inflight_at_two(
+    broker, session_factory, test_messaging_settings, redis_client
+):
     from app.infrastructure.messaging.engine import Messaging
     from app.infrastructure.messaging.task_consumer import clear_pending_consumers, task_consumer
 
@@ -40,7 +42,7 @@ async def test_concurrency_caps_inflight_at_two(broker, session_factory, test_me
         settings=test_messaging_settings,
     )
     try:
-        await msg.start_consumers()
+        await msg.start_consumers(redis=redis_client)
         for n in range(5):
             await broker.publish(
                 {"n": n},

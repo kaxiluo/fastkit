@@ -42,7 +42,7 @@ async def on_example_widget_requested(
 
 @task_consumer("example.slowtask.requested", concurrency=10)
 async def on_example_slow_task_requested(msg: ExampleSlowTaskRequested) -> None:
-    """模拟慢消费:随机睡 4~6 秒,用于观察 concurrency=10 的并行吞吐。"""
+    """模拟慢消费:随机睡 4~6 秒;concurrency=10 为全集群全局上限,双 worker 部署下全局同时在执行的仍 ≤ 10。"""
     started = time.monotonic()
     log.info("example.slowtask.started", task_id=msg.task_id)
     await asyncio.sleep(random.uniform(SLOW_TASK_SECONDS_MIN, SLOW_TASK_SECONDS_MAX))

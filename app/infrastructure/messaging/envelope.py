@@ -24,6 +24,8 @@ class Envelope(TypedDict, total=False):
     published_at: str
     routing_key: str
     attempts: int
+    overload_retries: int
+    original_message_id: str
     failure: FailureInfo | None
 
 
@@ -61,5 +63,7 @@ def parse_envelope(headers: dict) -> Envelope:
         published_at=headers.get("published_at", ""),
         routing_key=headers.get("routing_key", ""),
         attempts=headers.get("attempts", 1),
+        overload_retries=headers.get("overload_retries", 0),
+        original_message_id=headers.get("original_message_id", ""),
         failure=headers.get("failure"),
     )

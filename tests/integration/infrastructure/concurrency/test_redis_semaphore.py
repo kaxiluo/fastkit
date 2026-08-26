@@ -27,9 +27,9 @@ async def test_capacity_full_then_release(redis_client):
     async with sem.slot() as a:
         async with sem.slot() as b:
             assert {a, b} == {1, 2}
-            assert await sem._try_acquire(uuid4().hex) == -1  # 满
+            assert await sem.try_acquire(uuid4().hex) == -1  # 满
         # b 释放后可再拿
-        assert await sem._try_acquire(uuid4().hex) != -1
+        assert await sem.try_acquire(uuid4().hex) != -1
 
 
 async def test_third_waiter_unblocks_on_release(redis_client):
@@ -54,29 +54,29 @@ async def test_renewal_keeps_slot_alive(redis_client):
     sem = _sem(redis_client, capacity=1, lease=2, poll=0.02)
     async with sem.slot():
         await asyncio.sleep(3)  # > lease,续租应保住
-        assert await sem._try_acquire(uuid4().hex) == -1
+        assert await sem.try_acquire(uuid4().hex) == -1
 
 
 async def test_crash_expiry_frees_slot(redis_client):
     # 模拟崩溃:直接占槽但不起续租,等 TTL 过期
     sem = _sem(redis_client, capacity=1, lease=1, poll=0.02)
     token = uuid4().hex
-    assert await sem._try_acquire(token) == 1
+    assert await sem.try_acquire(token) == 1
     await asyncio.sleep(1.3)
-    assert await sem._try_acquire(uuid4().hex) == 1  # 已释放
+    assert await sem.try_acquire(uuid4().hex) == 1  # 已释放
 
 
 async def test_token_guard_release(redis_client):
     sem = _sem(redis_client, capacity=1, lease=30, poll=0.02)
     token_a = uuid4().hex
-    assert await sem._try_acquire(token_a) == 1
+    assert await sem.try_acquire(token_a) == 1
     key = f"{sem._prefix}:1"
     # 用错误 token release 不应删除
     await sem._release_script(keys=[key], args=["wrong-token"])
-    assert await sem._try_acquire(uuid4().hex) == -1  # 仍被 A 持有
+    assert await sem.try_acquire(uuid4().hex) == -1  # 仍被 A 持有
     # 正确 token release
     await sem._release_script(keys=[key], args=[token_a])
-    assert await sem._try_acquire(uuid4().hex) == 1
+    assert await sem.try_acquire(uuid4().hex) == 1
 
 
 async def test_slot_timeout_raises_when_capacity_full(redis_client):
@@ -90,3 +90,11 @@ async def test_slot_timeout_raises_when_capacity_full(redis_client):
         with pytest.raises(TimeoutError):
             async with sem.slot(timeout=0.3):
                 pass  # 不应到达
+
+
+async def test_probe_roundtrip_on_real_redis(redis_client):
+    sem = _sem(redis_client, capacity=1, lease=2)
+    await sem.probe()
+    # 探针结束不残留 key
+    keys = [k async for k in redis_client.scan_iter(match=f"{sem._prefix}*")]
+    assert keys == []

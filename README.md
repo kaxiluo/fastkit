@@ -40,7 +40,7 @@ make dev-scheduler   # = uv run uvicorn app.entrypoints.scheduler:app --port 800
 跑通后:
 - HTTP: `curl -s localhost:8000/health` → `{"status":"ok"}`
 - 示例业务接口: `POST localhost:8000/api/v1/example/widgets`、`GET localhost:8000/api/v1/example/widgets/{id}`
-- 模拟慢任务(每条消费随机 4~6s、并发 10): `curl -s -X POST localhost:8000/api/v1/example/slow-tasks -H 'Content-Type: application/json' -d '{"count":20}'`,worker 日志可见 `example.slowtask.started/finished`
+- 模拟慢任务(每条消费随机 4~6s、全局并发 10,双 worker 部署下全局仍为 10): `curl -s -X POST localhost:8000/api/v1/example/slow-tasks -H 'Content-Type: application/json' -d '{"count":20}'`,worker 日志可见 `example.slowtask.started/finished`
 - Worker AsyncAPI 文档: 浏览器打开 `http://localhost:8001/asyncapi`
 - Scheduler: `curl -s localhost:8002/health` → `{"status":"ok"}`
 
@@ -66,7 +66,8 @@ uv run uvicorn app.entrypoints.worker:app --port 8001
 - **健康检查**: `GET /health` — 基于 `broker.ping(timeout=5s)`,broker 不通则返回非 200
 - **AsyncAPI 文档**: 非 prod 挂载 `/asyncapi`(含 Try It Out)
 - **关键环境变量**: `BROKER_URL`、`MESSAGING_OUTBOX_*`(轮询间隔/最大重试/批量大小,均有默认)、`MESSAGING_CONSUMER_TIMEOUT_SECONDS`(handler 超时秒数,默认 180;per-consumer 可用 `@task_consumer(timeout=...)` 覆盖)
-- **`uvicorn --workers`**:多进程与多副本在 relay 侧等价(SKIP LOCKED 不重复发布;跨实例无发布顺序)
+- **消费并发为全局语义**(`@task_consumer(concurrency=N)` = 全集群上限,Redis 闸实现);worker 须能连 Redis(启动时 fail-closed 探活)
+- **`WORKER_REPLICAS`**:worker 副本数,须与 `uvicorn --workers` 起进程数一致;多进程与多副本在 relay 侧等价(SKIP LOCKED 不重复发布;跨实例无发布顺序)
 
 ## Scheduler 进程
 
@@ -92,7 +93,7 @@ docker build -f Dockerfile.scheduler -t fastkit-scheduler:tag .
 ```
 
 - **迁移**:镜像内含 `alembic`,任一镜像跑 `alembic upgrade head`(连接串走环境变量)
-- **扩容**:http / worker 镜像默认多进程,`UVICORN_WORKERS` 可调;跨节点走副本
+- **扩容**:http / worker 镜像默认多进程,worker 的 `WORKER_REPLICAS` 可调;跨节点走副本
 - **探针**:http `/health` + `/ready`;worker `/health`(:8001);scheduler `/health`(:8002)
 - **scheduler**:单副本 + `strategy: Recreate`(无分布式锁,滚动瞬间会双调度)
 

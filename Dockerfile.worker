@@ -19,8 +19,9 @@ COPY --chown=1000:1000 . ./
 ENV PATH="/app/.venv/bin:$PATH"
 
 # 多进程 = N 个独立 consumer + N 份 outbox relay(SKIP LOCKED 原子占位,不重复发布;
-# 跨进程无发布顺序保证);跨节点扩容走副本
-ENV UVICORN_WORKERS=2
+# 跨进程无发布顺序保证);跨节点扩容走副本。WORKER_REPLICAS 单点维护:app 读它摊薄
+# prefetch,--workers 经 shell 展开引用同一变量;exec 前缀使 SIGTERM 直达 uvicorn
+ENV WORKER_REPLICAS=2
 
 EXPOSE 8001
-CMD ["uvicorn", "app.entrypoints.worker:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD exec uvicorn app.entrypoints.worker:app --host 0.0.0.0 --port 8001 --workers $WORKER_REPLICAS
