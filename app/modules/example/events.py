@@ -11,3 +11,9 @@ from app.infrastructure.messaging import event
 class ExampleWidgetRequested(BaseModel):
     message_version: int = 1
     widget_id: int
+
+
+@event("example.slowtask.requested")
+class ExampleSlowTaskRequested(BaseModel):
+    message_version: int = 1
+    task_id: str

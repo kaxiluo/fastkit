@@ -40,6 +40,7 @@ make dev-scheduler   # = uv run uvicorn app.entrypoints.scheduler:app --port 800
 跑通后:
 - HTTP: `curl -s localhost:8000/health` → `{"status":"ok"}`
 - 示例业务接口: `POST localhost:8000/api/v1/example/widgets`、`GET localhost:8000/api/v1/example/widgets/{id}`
+- 模拟慢任务(每条消费随机 4~6s、并发 10): `curl -s -X POST localhost:8000/api/v1/example/slow-tasks -H 'Content-Type: application/json' -d '{"count":20}'`,worker 日志可见 `example.slowtask.started/finished`
 - Worker AsyncAPI 文档: 浏览器打开 `http://localhost:8001/asyncapi`
 - Scheduler: `curl -s localhost:8002/health` → `{"status":"ok"}`
 

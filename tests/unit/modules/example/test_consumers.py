@@ -13,3 +13,14 @@ def test_example_consumer_registered():
     assert spec.retry_policy.max_attempts == 3
     assert spec.inbox_enabled is True
     assert spec.concurrency == 1
+
+
+def test_slow_task_consumer_registered():
+    from app.modules.example.consumers import on_example_slow_task_requested
+
+    spec = on_example_slow_task_requested.__consumer_spec__
+    assert spec.routing_key == "example.slowtask.requested"
+    assert spec.concurrency == 10
+    assert spec.inbox_enabled is True
+    assert spec.retry_policy is None
+    assert spec.accepts_session_factory is False

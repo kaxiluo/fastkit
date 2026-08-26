@@ -9,6 +9,14 @@ class CreateWidgetRequest(BaseModel):
     payload: dict = Field(default_factory=dict)
 
 
+class CreateSlowTaskRequest(BaseModel):
+    count: int = Field(default=1, ge=1, le=1000)
+
+
+class SlowTaskResponse(BaseModel):
+    task_ids: list[str]
+
+
 class WidgetResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
