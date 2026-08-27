@@ -16,7 +16,7 @@ from app.infrastructure.messaging.dlq.topology import declare_dlq
 from app.infrastructure.messaging.envelope import parse_envelope
 from app.infrastructure.messaging.event import EventRegistry, get_registered_events
 from app.infrastructure.messaging.outbox.publisher import TransactionalPublisher
-from app.infrastructure.messaging.outbox.relay import relay_loop
+from app.infrastructure.messaging.outbox.relay import supervised_relay_loop
 from app.infrastructure.messaging.retry.dispatcher import RetryDispatcher
 from app.infrastructure.messaging.retry.topology import declare_retry
 from app.infrastructure.messaging.settings import MessagingSettings
@@ -104,8 +104,10 @@ class Messaging:
         if start_broker:
             await self._broker.start()
         self._relay_task = asyncio.create_task(
-            relay_loop(self._session_factory, self._broker, self._settings, self._shutdown),
-            name="messaging.relay_loop",
+            supervised_relay_loop(
+                self._session_factory, self._broker, self._settings, self._shutdown
+            ),
+            name="messaging.relay_supervisor",
         )
         log.info(
             "messaging.consumers_ready",

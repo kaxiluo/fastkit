@@ -120,9 +120,9 @@ async def test_start_consumers_probes_semaphore_and_declares_capacity(monkeypatc
     async def _fake_relay_loop(*args, **kwargs):
         return None
 
-    # 真 relay_loop 会拿 object() session_factory 打 DB,崩了还会让 stop() 的
-    # wait_for re-raise —— 完整 start_consumers 路径必须替换掉
-    monkeypatch.setattr(engine_module, "relay_loop", _fake_relay_loop)
+    # 真 supervised_relay_loop 会拿 object() session_factory 打 DB,崩了还会
+    # 让 stop() 的 wait_for re-raise —— 完整 start_consumers 路径必须替换掉
+    monkeypatch.setattr(engine_module, "supervised_relay_loop", _fake_relay_loop)
 
     @task_consumer("t.wire.probe", inbox=False, concurrency=3)
     async def h(payload: dict) -> None:

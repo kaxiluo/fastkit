@@ -185,3 +185,32 @@ async def relay_loop(
         finally:
             await asyncpg_conn.remove_listener(OUTBOX_NOTIFY_CHANNEL, _on_notify)
             log.info("outbox.relay_stopped")
+
+
+async def supervised_relay_loop(
+    session_factory: async_sessionmaker,
+    broker,
+    settings: MessagingSettings,
+    shutdown_event: asyncio.Event,
+) -> None:
+    """relay_loop 的 supervisor:异常退出记 error 后按 poll 间隔重启。
+
+    relay 是常驻协程,LISTEN 连接断开、表暂不可用等任何异常都会让裸
+    relay_loop 静默死亡且不自愈——写路径正常、无告警、消息滞留 outbox。
+    这里把故障粒度拉回单次扫描:故障期重试频率 = 正常轮询频率(重启成本
+    仅一次失败探测),shutdown 可打断退避。
+    """
+    while not shutdown_event.is_set():
+        try:
+            await relay_loop(session_factory, broker, settings, shutdown_event)
+        except Exception as e:
+            log.error(
+                "outbox.relay_crashed_restart",
+                retry_in=settings.outbox_poll_interval_seconds,
+                error=repr(e),
+            )
+            with suppress(TimeoutError):
+                await asyncio.wait_for(
+                    shutdown_event.wait(),
+                    timeout=settings.outbox_poll_interval_seconds,
+                )
